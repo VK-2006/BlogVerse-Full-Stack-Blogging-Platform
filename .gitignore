@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+coverage/
+backend/prisma/dev.db
+backend/uploads/posts/*
+!backend/uploads/posts/.gitkeep
+backend/backups/*.json

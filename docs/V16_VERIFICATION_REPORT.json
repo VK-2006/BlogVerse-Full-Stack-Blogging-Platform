@@ -1,0 +1,17 @@
+{
+  "version": "V16",
+  "checks": {
+    "frontend_jsx_parse": "PASS",
+    "css_parse": "PASS",
+    "relative_imports": "PASS",
+    "backend_javascript_syntax": "PASS",
+    "admin_only_api_guard": "PASS",
+    "per_user_posts_api": "PASS",
+    "view_posts_ui": "PASS",
+    "block_unblock_api_match": "PASS",
+    "dark_theme_styles": "PASS",
+    "mobile_media_queries": "PASS",
+    "zip_integrity": "PASS"
+  },
+  "runtime_limit": "A live MySQL/API browser session was not available in the generation environment. The included Windows verification script runs Prisma validation and the frontend production build on the user's laptop."
+}

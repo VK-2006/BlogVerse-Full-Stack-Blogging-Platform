@@ -1,0 +1,283 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CommunityTopic {
+  GENERAL
+  INTRODUCTIONS
+  WRITING
+  TECHNOLOGY
+  CAREER
+}
+
+enum ContactStatus {
+  NEW
+  IN_PROGRESS
+  REPLIED
+  CLOSED
+}
+
+model User {
+  id               Int              @id @default(autoincrement())
+  name             String
+  email            String           @unique
+  passwordHash     String
+  avatar           String?
+  bio              String?          @db.Text
+  headline         String?          @db.VarChar(120)
+  occupation       String?          @db.VarChar(120)
+  location         String?          @db.VarChar(120)
+  website          String?          @db.VarChar(500)
+  socialLink       String?          @db.VarChar(500)
+  role                  Role             @default(USER)
+  isBlocked             Boolean          @default(false)
+  isDisabled            Boolean          @default(false)
+  disabledAt            DateTime?
+  disabledReason        String?           @db.VarChar(255)
+  deletionRequestedAt   DateTime?
+  deletionScheduledFor  DateTime?
+  lastLoginAt           DateTime?
+  lastSeenAt            DateTime?
+  posts                 Post[]
+  comments         Comment[]
+  likes            Like[]
+  bookmarks        Bookmark[]
+  resetTokens      PasswordResetToken[]
+  communityPosts   CommunityPost[]
+  communityReplies CommunityReply[]
+  communityLikes   CommunityLike[]
+  contactMessages  ContactMessage[] @relation("ContactSender")
+  contactReplies   ContactMessage[] @relation("ContactResponder")
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@index([isDisabled])
+  @@index([deletionScheduledFor])
+  @@index([lastSeenAt])
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  slug        String   @unique
+  description String?  @db.Text
+  posts       Post[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  slug      String    @unique
+  posts     PostTag[]
+  createdAt DateTime  @default(now())
+}
+
+model Post {
+  id                Int             @id @default(autoincrement())
+  title             String
+  slug              String          @unique
+  excerpt           String          @db.Text
+  content           String          @db.LongText
+  coverImage        String?
+  status            PostStatus      @default(DRAFT)
+  isBlocked         Boolean         @default(false)
+  blockedAt         DateTime?
+  blockedReason     String?         @db.VarChar(255)
+  blockedByAdminId  Int?
+  viewCount         Int             @default(0)
+  readTime          Int             @default(1)
+  publishedAt       DateTime?
+  authorId          Int
+  categoryId        Int?
+  author            User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category          Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  comments          Comment[]
+  likes             Like[]
+  bookmarks         Bookmark[]
+  tags              PostTag[]
+  attachments       PostAttachment[]
+  links             PostLink[]
+  communityShares   CommunityPost[] @relation("CommunitySharedPost")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([isBlocked])
+  @@index([blockedAt])
+}
+
+model PostTag {
+  postId Int
+  tagId  Int
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+}
+
+model Comment {
+  id        Int       @id @default(autoincrement())
+  content   String    @db.Text
+  userId    Int
+  postId    Int
+  parentId  Int?
+  isEdited  Boolean   @default(false)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([postId])
+  @@index([userId])
+}
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+}
+
+model Bookmark {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique @db.VarChar(64)
+  userId    Int
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ContactMessage {
+  id               Int           @id @default(autoincrement())
+  ticketCode       String?       @unique @db.VarChar(24)
+  name             String
+  email            String
+  subject          String
+  message          String        @db.Text
+  status           ContactStatus @default(NEW)
+  adminReply       String?       @db.Text
+  userId           Int?
+  repliedByAdminId Int?
+  repliedAt        DateTime?
+  closedAt         DateTime?
+  user             User?         @relation("ContactSender", fields: [userId], references: [id], onDelete: SetNull)
+  repliedByAdmin   User?         @relation("ContactResponder", fields: [repliedByAdminId], references: [id], onDelete: SetNull)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId])
+  @@index([repliedByAdminId])
+}
+
+model PostAttachment {
+  id           Int      @id @default(autoincrement())
+  postId       Int
+  originalName String   @db.VarChar(255)
+  storedName   String   @db.VarChar(255)
+  url          String   @db.Text
+  mimeType     String   @db.VarChar(150)
+  size         Int
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([postId])
+}
+
+model PostLink {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  label     String?  @db.VarChar(100)
+  url       String   @db.Text
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+}
+
+model CommunityPost {
+  id           Int              @id @default(autoincrement())
+  content      String           @db.Text
+  authorId     Int
+  sharedPostId Int?
+  topic        CommunityTopic   @default(GENERAL)
+  author       User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  sharedPost   Post?            @relation("CommunitySharedPost", fields: [sharedPostId], references: [id], onDelete: SetNull)
+  replies      CommunityReply[]
+  likes        CommunityLike[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([authorId])
+  @@index([sharedPostId])
+  @@index([topic])
+  @@index([createdAt])
+}
+
+model CommunityReply {
+  id              Int           @id @default(autoincrement())
+  content         String        @db.Text
+  authorId        Int
+  communityPostId Int
+  author          User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  communityPost   CommunityPost @relation(fields: [communityPostId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([authorId])
+  @@index([communityPostId])
+}
+
+model CommunityLike {
+  id              Int           @id @default(autoincrement())
+  userId          Int
+  communityPostId Int
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  communityPost   CommunityPost @relation(fields: [communityPostId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+
+  @@unique([userId, communityPostId])
+  @@index([communityPostId])
+}
