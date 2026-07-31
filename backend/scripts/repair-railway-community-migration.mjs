@@ -2,7 +2,13 @@ import { spawnSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
-const FAILED_MIGRATION = "20260727065451_fix_communities_v6";
+
+const MIGRATIONS = {
+  community: "20260727065451_fix_communities_v6",
+  lifecycle: "20260728081601_account_lifecycle_admin_presence_v9",
+  profile: "20260728172801_profile_details_dark_mode_v10",
+  moderation: "20260729135158_admin_post_moderation_v13",
+};
 
 function runPrisma(args, { allowFailure = false } = {}) {
   console.log(`\n> npx prisma ${args.join(" ")}`);
@@ -85,30 +91,75 @@ async function constraintExists(database, tableName, constraintName) {
   return Number(rows[0]?.total ?? 0) > 0;
 }
 
-async function repairCommunityMigration() {
-  const database = await getDatabaseName();
+async function migrationFinished(migrationName) {
+  const rows = await prisma.$queryRawUnsafe(
+    `SELECT finished_at AS finishedAt
+       FROM _prisma_migrations
+      WHERE migration_name = ?
+      ORDER BY started_at DESC
+      LIMIT 1`,
+    migrationName,
+  );
 
-  if (!database) {
-    throw new Error("Unable to determine the active MySQL database name.");
+  return Boolean(rows[0]?.finishedAt);
+}
+
+async function resolveApplied(migrationName) {
+  if (await migrationFinished(migrationName)) {
+    console.log(`Migration already resolved: ${migrationName}`);
+    return;
   }
 
-  console.log(`Repairing migration in database: ${database}`);
+  await prisma.$disconnect();
+  runPrisma(["migrate", "resolve", "--applied", migrationName]);
+  await prisma.$connect();
+}
+
+async function addColumn(database, tableName, columnName, definition) {
+  if (await columnExists(database, tableName, columnName)) {
+    console.log(`Column already exists: ${tableName}.${columnName}`);
+    return;
+  }
+
+  console.log(`Adding column: ${tableName}.${columnName}`);
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${definition}`,
+  );
+}
+
+async function addIndex(database, tableName, indexName, columns, unique = false) {
+  if (await indexExists(database, tableName, indexName)) {
+    console.log(`Index already exists: ${indexName}`);
+    return;
+  }
+
+  const prefix = unique ? "CREATE UNIQUE INDEX" : "CREATE INDEX";
+  const quotedColumns = columns.map((column) => `\`${column}\``).join(", ");
+
+  console.log(`Creating index: ${indexName}`);
+  await prisma.$executeRawUnsafe(
+    `${prefix} \`${indexName}\` ON \`${tableName}\`(${quotedColumns})`,
+  );
+}
+
+async function repairCommunityMigration(database) {
+  console.log(`\nRepairing ${MIGRATIONS.community}...`);
 
   if (!(await tableExists(database, "CommunityPost"))) {
     throw new Error(
-      "CommunityPost does not exist. The earlier add_communities_profiles migration did not complete.",
+      "CommunityPost does not exist. Earlier community migration is incomplete.",
     );
   }
 
-  if (!(await columnExists(database, "CommunityPost", "topic"))) {
-    console.log("Adding CommunityPost.topic using correct table-name casing...");
-    await prisma.$executeRawUnsafe(
-      "ALTER TABLE `CommunityPost` ADD COLUMN `topic` ENUM('GENERAL', 'INTRODUCTIONS', 'WRITING', 'TECHNOLOGY', 'CAREER') NOT NULL DEFAULT 'GENERAL'",
-    );
-  }
+  await addColumn(
+    database,
+    "CommunityPost",
+    "topic",
+    "ENUM('GENERAL', 'INTRODUCTIONS', 'WRITING', 'TECHNOLOGY', 'CAREER') NOT NULL DEFAULT 'GENERAL'",
+  );
 
   if (!(await tableExists(database, "CommunityLike"))) {
-    console.log("Creating CommunityLike...");
+    console.log("Creating table: CommunityLike");
     await prisma.$executeRawUnsafe(`
       CREATE TABLE \`CommunityLike\` (
         \`id\` INTEGER NOT NULL AUTO_INCREMENT,
@@ -122,27 +173,36 @@ async function repairCommunityMigration() {
     `);
   }
 
-  if (!(await indexExists(database, "CommunityPost", "CommunityPost_topic_idx"))) {
-    console.log("Creating CommunityPost topic index...");
-    await prisma.$executeRawUnsafe(
-      "CREATE INDEX `CommunityPost_topic_idx` ON `CommunityPost`(`topic`)",
-    );
-  }
+  await addIndex(
+    database,
+    "CommunityPost",
+    "CommunityPost_topic_idx",
+    ["topic"],
+  );
 
-  if (!(await indexExists(database, "CommunityLike", "CommunityLike_communityPostId_idx"))) {
-    await prisma.$executeRawUnsafe(
-      "CREATE INDEX `CommunityLike_communityPostId_idx` ON `CommunityLike`(`communityPostId`)",
-    );
-  }
+  await addIndex(
+    database,
+    "CommunityLike",
+    "CommunityLike_communityPostId_idx",
+    ["communityPostId"],
+  );
 
-  if (!(await indexExists(database, "CommunityLike", "CommunityLike_userId_communityPostId_key"))) {
-    await prisma.$executeRawUnsafe(
-      "CREATE UNIQUE INDEX `CommunityLike_userId_communityPostId_key` ON `CommunityLike`(`userId`, `communityPostId`)",
-    );
-  }
+  await addIndex(
+    database,
+    "CommunityLike",
+    "CommunityLike_userId_communityPostId_key",
+    ["userId", "communityPostId"],
+    true,
+  );
 
-  if (!(await constraintExists(database, "CommunityLike", "CommunityLike_userId_fkey"))) {
-    console.log("Adding CommunityLike user foreign key...");
+  if (
+    !(await constraintExists(
+      database,
+      "CommunityLike",
+      "CommunityLike_userId_fkey",
+    ))
+  ) {
+    console.log("Adding foreign key: CommunityLike_userId_fkey");
     await prisma.$executeRawUnsafe(
       "ALTER TABLE `CommunityLike` ADD CONSTRAINT `CommunityLike_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE",
     );
@@ -155,54 +215,142 @@ async function repairCommunityMigration() {
       "CommunityLike_communityPostId_fkey",
     ))
   ) {
-    console.log("Adding CommunityLike community-post foreign key...");
+    console.log("Adding foreign key: CommunityLike_communityPostId_fkey");
     await prisma.$executeRawUnsafe(
       "ALTER TABLE `CommunityLike` ADD CONSTRAINT `CommunityLike_communityPostId_fkey` FOREIGN KEY (`communityPostId`) REFERENCES `CommunityPost`(`id`) ON DELETE CASCADE ON UPDATE CASCADE",
     );
   }
 
-  console.log("Community migration SQL repair completed.");
+  await resolveApplied(MIGRATIONS.community);
 }
 
-async function migrationAlreadyFinished() {
-  const rows = await prisma.$queryRawUnsafe(
-    `SELECT finished_at AS finishedAt
-       FROM _prisma_migrations
-      WHERE migration_name = ?
-      ORDER BY started_at DESC
-      LIMIT 1`,
-    FAILED_MIGRATION,
+async function repairLifecycleMigration(database) {
+  console.log(`\nRepairing ${MIGRATIONS.lifecycle}...`);
+
+  if (!(await tableExists(database, "User"))) {
+    throw new Error("User table does not exist.");
+  }
+
+  await addColumn(database, "User", "deletionRequestedAt", "DATETIME(3) NULL");
+  await addColumn(database, "User", "deletionScheduledFor", "DATETIME(3) NULL");
+  await addColumn(database, "User", "disabledAt", "DATETIME(3) NULL");
+  await addColumn(database, "User", "disabledReason", "VARCHAR(255) NULL");
+  await addColumn(
+    database,
+    "User",
+    "isDisabled",
+    "BOOLEAN NOT NULL DEFAULT false",
+  );
+  await addColumn(database, "User", "lastLoginAt", "DATETIME(3) NULL");
+  await addColumn(database, "User", "lastSeenAt", "DATETIME(3) NULL");
+
+  await addIndex(database, "User", "User_isDisabled_idx", ["isDisabled"]);
+  await addIndex(
+    database,
+    "User",
+    "User_deletionScheduledFor_idx",
+    ["deletionScheduledFor"],
+  );
+  await addIndex(database, "User", "User_lastSeenAt_idx", ["lastSeenAt"]);
+
+  await resolveApplied(MIGRATIONS.lifecycle);
+}
+
+async function repairProfileMigration(database) {
+  console.log(`\nRepairing ${MIGRATIONS.profile}...`);
+
+  if (!(await tableExists(database, "User"))) {
+    throw new Error("User table does not exist.");
+  }
+
+  await addColumn(database, "User", "headline", "VARCHAR(120) NULL");
+  await addColumn(database, "User", "location", "VARCHAR(120) NULL");
+  await addColumn(database, "User", "occupation", "VARCHAR(120) NULL");
+  await addColumn(database, "User", "socialLink", "VARCHAR(500) NULL");
+  await addColumn(database, "User", "website", "VARCHAR(500) NULL");
+
+  await resolveApplied(MIGRATIONS.profile);
+}
+
+async function repairModerationMigration(database) {
+  console.log(`\nRepairing ${MIGRATIONS.moderation}...`);
+
+  if (!(await tableExists(database, "Post"))) {
+    throw new Error("Post table does not exist.");
+  }
+
+  await addColumn(database, "Post", "blockedAt", "DATETIME(3) NULL");
+  await addColumn(database, "Post", "blockedByAdminId", "INTEGER NULL");
+  await addColumn(database, "Post", "blockedReason", "VARCHAR(255) NULL");
+  await addColumn(
+    database,
+    "Post",
+    "isBlocked",
+    "BOOLEAN NOT NULL DEFAULT false",
   );
 
-  return Boolean(rows[0]?.finishedAt);
+  await addIndex(database, "Post", "Post_isBlocked_idx", ["isBlocked"]);
+  await addIndex(database, "Post", "Post_blockedAt_idx", ["blockedAt"]);
+
+  await resolveApplied(MIGRATIONS.moderation);
+}
+
+async function verifyRequiredSchema(database) {
+  const requiredColumns = [
+    ["CommunityPost", "topic"],
+    ["User", "isDisabled"],
+    ["User", "headline"],
+    ["Post", "isBlocked"],
+    ["ContactMessage", "ticketCode"],
+    ["ContactMessage", "adminReply"],
+  ];
+
+  for (const [tableName, columnName] of requiredColumns) {
+    if (!(await columnExists(database, tableName, columnName))) {
+      throw new Error(
+        `Final verification failed: ${tableName}.${columnName} is missing.`,
+      );
+    }
+  }
+
+  console.log("\nFinal schema verification passed.");
 }
 
 async function main() {
-  console.log("BlogVerse Railway migration repair starting...");
+  console.log("BlogVerse Railway migration repair V2 starting...");
 
   if (runPrisma(["migrate", "deploy"], { allowFailure: true })) {
-    console.log("All Prisma migrations applied successfully.");
+    const database = await getDatabaseName();
+    await verifyRequiredSchema(database);
+    console.log("All Prisma migrations are already healthy.");
     return;
   }
 
-  console.log(`Repairing failed migration: ${FAILED_MIGRATION}`);
+  const database = await getDatabaseName();
 
-  await repairCommunityMigration();
-
-  if (!(await migrationAlreadyFinished())) {
-    await prisma.$disconnect();
-    runPrisma(["migrate", "resolve", "--applied", FAILED_MIGRATION]);
-  } else {
-    await prisma.$disconnect();
+  if (!database) {
+    throw new Error("Unable to determine the active MySQL database.");
   }
 
+  console.log(`Connected database: ${database}`);
+
+  await repairCommunityMigration(database);
+  await repairLifecycleMigration(database);
+  await repairProfileMigration(database);
+  await repairModerationMigration(database);
+
+  await prisma.$disconnect();
   runPrisma(["migrate", "deploy"]);
-  console.log("BlogVerse Railway migrations are now healthy.");
+  await prisma.$connect();
+
+  await verifyRequiredSchema(database);
+
+  console.log("\nSUCCESS: BlogVerse Railway migrations are healthy.");
 }
 
 main()
   .catch((error) => {
-    console.error("Railway migration repair failed:", error);
+    console.error("\nRailway migration repair V2 failed:", error);
     process.exitCode = 1;
   })
   .finally(async () => {
