@@ -10,7 +10,7 @@ import {
   verifyToken
 } from "../utils/jwt.js";
 import { requireAuth } from "../middleware/auth.js";
-import { sendPasswordResetEmail } from "../utils/mailer.js";
+import { emailDeliveryConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
 import { removeStoredPostFiles } from "../utils/fileStorage.js";
 
 const router = Router();
@@ -238,18 +238,13 @@ router.post("/forgot-password", async (req, res, next) => {
   try {
     const { email } = z.object({ email: z.string().trim().email().toLowerCase() }).parse(req.body);
     const user = await prisma.user.findUnique({ where: { email } });
-    const smtpReady = Boolean(
-      process.env.SMTP_HOST &&
-      process.env.SMTP_PORT &&
-      process.env.SMTP_USER &&
-      process.env.SMTP_PASS
-    );
+    const emailReady = emailDeliveryConfigured();
     const allowResetLinkResponse = String(process.env.ALLOW_RESET_LINK_RESPONSE).toLowerCase() === "true";
 
     const response = {
       success: true,
-      delivery: smtpReady ? "queued" : "unavailable",
-      message: smtpReady
+      delivery: emailReady ? "queued" : "unavailable",
+      message: emailReady
         ? "If an account exists for this email, a password reset link is being sent."
         : "Password-reset email delivery is not configured on the server yet. Please contact the administrator or try again later."
     };
@@ -267,7 +262,7 @@ router.post("/forgot-password", async (req, res, next) => {
     const frontendUrl = String(process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
     const resetUrl = frontendUrl + "/reset-password/" + rawToken;
 
-    if (smtpReady) {
+    if (emailReady) {
       void sendPasswordResetEmail({
         to: user.email,
         name: user.name,
