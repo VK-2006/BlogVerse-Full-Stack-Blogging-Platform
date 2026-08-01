@@ -238,10 +238,20 @@ router.post("/forgot-password", async (req, res, next) => {
   try {
     const { email } = z.object({ email: z.string().trim().email().toLowerCase() }).parse(req.body);
     const user = await prisma.user.findUnique({ where: { email } });
+    const smtpReady = Boolean(
+      process.env.SMTP_HOST &&
+      process.env.SMTP_PORT &&
+      process.env.SMTP_USER &&
+      process.env.SMTP_PASS
+    );
+    const allowResetLinkResponse = String(process.env.ALLOW_RESET_LINK_RESPONSE).toLowerCase() === "true";
 
     const response = {
       success: true,
-      message: "If an account exists for this email, a password reset link has been prepared."
+      delivery: smtpReady ? "requested" : "unavailable",
+      message: smtpReady
+        ? "If an account exists for this email, a password reset link has been sent."
+        : "Password-reset email delivery is not configured on the server yet. Please contact the administrator or try again later."
     };
 
     if (!user || user.isDisabled || user.isBlocked) return res.json(response);
@@ -254,20 +264,20 @@ router.post("/forgot-password", async (req, res, next) => {
 
     await prisma.passwordResetToken.create({ data: { tokenHash, userId: user.id, expiresAt } });
 
-    const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password/${rawToken}`;
+    const frontendUrl = String(process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+    const resetUrl = frontendUrl + "/reset-password/" + rawToken;
 
-    try {
-      const mailResult = await sendPasswordResetEmail({ to: user.email, name: user.name, resetUrl });
-      if (process.env.NODE_ENV !== "production" && !mailResult.sent) {
-        response.resetUrl = resetUrl;
-        response.developmentNote = "SMTP is not configured, so this test link is shown only in development.";
+    if (smtpReady) {
+      try {
+        await sendPasswordResetEmail({ to: user.email, name: user.name, resetUrl });
+      } catch (mailError) {
+        console.error("Password reset email failed:", mailError.message);
       }
-    } catch (mailError) {
-      console.error("Password reset email failed:", mailError.message);
-      if (process.env.NODE_ENV !== "production") {
-        response.resetUrl = resetUrl;
-        response.developmentNote = "Email delivery failed, so this test link is shown only in development.";
-      }
+    }
+
+    if (allowResetLinkResponse) {
+      response.resetUrl = resetUrl;
+      response.developmentNote = "This demo link is visible because ALLOW_RESET_LINK_RESPONSE=true. Disable it after testing email delivery.";
     }
 
     res.json(response);

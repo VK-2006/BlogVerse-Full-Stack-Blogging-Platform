@@ -1,3 +1,4 @@
+import "../community-v19.css";
 import {
   Check,
   Copy,
