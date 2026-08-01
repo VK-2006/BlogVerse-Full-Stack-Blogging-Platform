@@ -248,9 +248,9 @@ router.post("/forgot-password", async (req, res, next) => {
 
     const response = {
       success: true,
-      delivery: smtpReady ? "requested" : "unavailable",
+      delivery: smtpReady ? "queued" : "unavailable",
       message: smtpReady
-        ? "If an account exists for this email, a password reset link has been sent."
+        ? "If an account exists for this email, a password reset link is being sent."
         : "Password-reset email delivery is not configured on the server yet. Please contact the administrator or try again later."
     };
 
@@ -268,11 +268,26 @@ router.post("/forgot-password", async (req, res, next) => {
     const resetUrl = frontendUrl + "/reset-password/" + rawToken;
 
     if (smtpReady) {
-      try {
-        await sendPasswordResetEmail({ to: user.email, name: user.name, resetUrl });
-      } catch (mailError) {
-        console.error("Password reset email failed:", mailError.message);
-      }
+      void sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        resetUrl
+      })
+        .then((mailResult) => {
+          if (mailResult?.sent) {
+            console.log(`Password reset email queued successfully for user ${user.id}.`);
+          } else {
+            console.error(
+              `Password reset email was not sent for user ${user.id}: ${mailResult?.reason || "UNKNOWN"}`
+            );
+          }
+        })
+        .catch((mailError) => {
+          console.error(
+            `Password reset background email failed for user ${user.id}:`,
+            mailError.message
+          );
+        });
     }
 
     if (allowResetLinkResponse) {

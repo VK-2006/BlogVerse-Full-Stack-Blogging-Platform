@@ -29,7 +29,10 @@ function createTransporter() {
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
-    }
+    },
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS) || 8000,
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS) || 8000,
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS) || 12000
   });
 }
 

@@ -16,7 +16,11 @@ export default function ForgotPassword() {
     setBusy(true);
 
     try {
-      const { data } = await api.post("/auth/forgot-password", { email });
+      const { data } = await api.post(
+        "/auth/forgot-password",
+        { email },
+        { timeout: 30000 }
+      );
       setResult(data);
     } catch (requestError) {
       setError(requestError.message);
