@@ -1,0 +1,218 @@
+/* BlogVerse V24 navigation/reveal + Explore polish.
+   Loaded after app-redesign.css and ui-polish-v23.css. */
+
+/* Reveal animation must never make the route feel empty. */
+.reveal-on-scroll {
+  will-change: opacity, transform;
+}
+
+.reveal-on-scroll.is-visible {
+  will-change: auto;
+}
+
+/* Explore: compact, clearly structured curated cards. */
+.explore-collection-card {
+  min-height: 210px;
+  padding: 24px;
+  align-items: flex-start;
+  text-align: left;
+  gap: 8px;
+}
+
+.explore-collection-card > div:first-child {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 4px;
+  border-radius: 13px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+}
+
+.explore-collection-card > div:first-child svg {
+  width: 21px;
+  height: 21px;
+}
+
+.explore-collection-card > span {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.explore-collection-card h3 {
+  margin-top: 8px;
+  line-height: 1.25;
+}
+
+.explore-collection-card p {
+  margin: 0;
+  max-width: 36ch;
+}
+
+.explore-collection-card > strong {
+  margin-top: auto;
+  padding-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--heading);
+}
+
+/* Explore: remove browser bullets and let Lucide icons act as the markers. */
+.discover-panel ul {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+  display: grid;
+  gap: 13px;
+}
+
+.discover-panel li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.discover-panel li > svg {
+  width: 21px;
+  height: 21px;
+  color: var(--primary);
+  margin-top: 1px;
+}
+
+/* Explore: creator metadata must never join the creator name on the same line. */
+.writer-mini-card {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.writer-mini-card > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.writer-mini-card strong,
+.writer-mini-card span {
+  display: block;
+  min-width: 0;
+}
+
+.writer-mini-card strong {
+  line-height: 1.25;
+}
+
+.writer-mini-card span {
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.writer-mini-card > svg {
+  flex: 0 0 auto;
+}
+
+/* Post cards: prevent the Read/Community/share controls from clipping. */
+.post-card-body {
+  min-width: 0;
+}
+
+.post-card-share-row {
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.post-read-link {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.post-card-quick-actions {
+  min-width: 0;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.post-card-quick-actions a,
+.post-card-quick-actions button {
+  flex: 0 0 auto;
+}
+
+.post-card-quick-actions a {
+  white-space: nowrap;
+}
+
+/* Keep topic chips contained on small screens without squashing labels. */
+.explore-filter-row {
+  row-gap: 10px;
+}
+
+.explore-filter-row button {
+  flex: 0 0 auto;
+}
+
+/* Desktop Explore cards are narrow because of the sidebar; give controls their own row when needed. */
+@media (min-width: 961px) {
+  .explore-post-grid .post-card-share-row {
+    align-items: flex-start;
+  }
+
+  .explore-post-grid .post-card-quick-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .explore-collection-card {
+    min-height: 0;
+  }
+
+  .explore-filter-row {
+    justify-content: flex-start;
+  }
+
+  .writer-mini-card {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .post-card-quick-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .explore-collection-card {
+    padding: 21px;
+  }
+
+  .writers-panel,
+  .discover-panel {
+    padding: 19px;
+  }
+
+  .writer-mini-card {
+    gap: 11px;
+  }
+
+  .writer-mini-card > svg {
+    width: 20px;
+    height: 20px;
+  }
+}

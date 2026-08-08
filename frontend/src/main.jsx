@@ -6,6 +6,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import "./app-redesign.css";
 import "./ui-polish-v23.css";
+import "./ui-polish-v24.css";
 
 const rootElement = document.getElementById("root");
 

@@ -41,6 +41,8 @@ const selector = [
   ".support-request-card"
 ].join(",");
 
+const INITIAL_VIEWPORT_MARGIN = 96;
+
 export default function PageEffects() {
   const location = useLocation();
   const { pathname, search, hash } = location;
@@ -78,6 +80,24 @@ export default function PageEffects() {
     }
 
     let index = 0;
+    const pendingFrames = new Set();
+
+    const revealImmediatelyIfVisible = (element) => {
+      const rect = element.getBoundingClientRect();
+      const isNearViewport =
+        rect.bottom >= -INITIAL_VIEWPORT_MARGIN
+        && rect.top <= window.innerHeight + INITIAL_VIEWPORT_MARGIN;
+
+      if (!isNearViewport) return false;
+
+      const frame = window.requestAnimationFrame(() => {
+        element.classList.add("is-visible");
+        pendingFrames.delete(frame);
+      });
+      pendingFrames.add(frame);
+      return true;
+    };
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -86,7 +106,7 @@ export default function PageEffects() {
           observer.unobserve(entry.target);
         });
       },
-      { threshold: 0.06, rootMargin: "0px 0px -18px 0px" }
+      { threshold: 0.04, rootMargin: "96px 0px 96px 0px" }
     );
 
     const observeNewElements = () => {
@@ -94,16 +114,30 @@ export default function PageEffects() {
         if (element.dataset.revealReady === "true") return;
         element.dataset.revealReady = "true";
         element.classList.add("reveal-on-scroll");
-        element.style.setProperty("--reveal-delay", `${Math.min(index++ % 6, 5) * 45}ms`);
-        observer.observe(element);
+        element.style.setProperty("--reveal-delay", `${Math.min(index++ % 6, 5) * 35}ms`);
+
+        if (!revealImmediatelyIfVisible(element)) {
+          observer.observe(element);
+        }
       });
     };
 
-    const timer = window.setTimeout(observeNewElements, 20);
+    const timer = window.setTimeout(observeNewElements, 0);
     const mutationObserver = new MutationObserver(() => {
       window.requestAnimationFrame(observeNewElements);
     });
     mutationObserver.observe(root, { childList: true, subtree: true });
+
+    const safetyTimer = window.setTimeout(() => {
+      root.querySelectorAll(selector).forEach((element) => {
+        if (!element.classList.contains("reveal-on-scroll") || element.classList.contains("is-visible")) return;
+        const rect = element.getBoundingClientRect();
+        if (rect.bottom >= -INITIAL_VIEWPORT_MARGIN && rect.top <= window.innerHeight + INITIAL_VIEWPORT_MARGIN) {
+          element.classList.add("is-visible");
+          observer.unobserve(element);
+        }
+      });
+    }, 500);
 
     const updatePointerGlow = (event) => {
       const surface = event.target.closest?.(".interactive-surface");
@@ -117,6 +151,8 @@ export default function PageEffects() {
 
     return () => {
       window.clearTimeout(timer);
+      window.clearTimeout(safetyTimer);
+      pendingFrames.forEach((frame) => window.cancelAnimationFrame(frame));
       root.removeEventListener("pointermove", updatePointerGlow);
       mutationObserver.disconnect();
       observer.disconnect();
