@@ -34,44 +34,20 @@ function cleanBaseUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
 }
 
-function backendBaseUrl() {
-  return cleanBaseUrl(process.env.OAUTH_BACKEND_URL);
-}
-
 function frontendBaseUrl() {
   return cleanBaseUrl(process.env.FRONTEND_URL || "http://localhost:5173");
 }
 
-function facebookVersionPrefix() {
-  const version = String(process.env.FACEBOOK_GRAPH_VERSION || "").trim();
-  if (!version) return "";
-  return version.startsWith("v") ? `/${version}` : `/v${version}`;
-}
-
 function providerConfig(provider) {
-  const redirectUri = new URL("/oauth/callback", `${frontendBaseUrl()}/`).toString();
+  if (provider !== "google") return null;
 
-  if (provider === "google") {
-    return {
-      provider: "GOOGLE",
-      configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      redirectUri
-    };
-  }
-
-  if (provider === "facebook") {
-    return {
-      provider: "FACEBOOK",
-      configured: Boolean(process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET),
-      clientId: process.env.FACEBOOK_APP_ID,
-      clientSecret: process.env.FACEBOOK_APP_SECRET,
-      redirectUri
-    };
-  }
-
-  return null;
+  return {
+    provider: "GOOGLE",
+    configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri: new URL("/oauth/callback", `${frontendBaseUrl()}/`).toString()
+  };
 }
 
 function stateSigningKey() {
@@ -129,26 +105,15 @@ function verifySignedState(value, provider) {
   }
 }
 
-function buildAuthorizationUrl(provider, config, state) {
-  if (provider === "google") {
-    const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-    url.searchParams.set("client_id", config.clientId);
-    url.searchParams.set("redirect_uri", config.redirectUri);
-    url.searchParams.set("response_type", "code");
-    url.searchParams.set("scope", "openid email profile");
-    url.searchParams.set("state", state);
-    url.searchParams.set("include_granted_scopes", "true");
-    url.searchParams.set("prompt", "select_account");
-    return url.toString();
-  }
-
-  const versionPrefix = facebookVersionPrefix();
-  const url = new URL(`https://www.facebook.com${versionPrefix}/dialog/oauth`);
+function buildAuthorizationUrl(config, state) {
+  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("redirect_uri", config.redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "email,public_profile");
+  url.searchParams.set("scope", "openid email profile");
   url.searchParams.set("state", state);
+  url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("prompt", "select_account");
   return url.toString();
 }
 
@@ -228,42 +193,6 @@ async function googleProfile(code, config) {
     emailVerified: true,
     name: String(profile.name || profile.given_name || "BlogVerse User").trim().slice(0, 60),
     avatar: profile.picture ? String(profile.picture) : null
-  };
-}
-
-async function facebookProfile(code, config) {
-  const versionPrefix = facebookVersionPrefix();
-  const token = await fetchJson(`https://graph.facebook.com${versionPrefix}/oauth/access_token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-      redirect_uri: config.redirectUri,
-      code
-    })
-  });
-
-  if (!token.access_token) throw new Error("Facebook did not return an access token.");
-
-  const meUrl = new URL(`https://graph.facebook.com${versionPrefix}/me`);
-  meUrl.searchParams.set("fields", "id,name,email,picture.type(large)");
-
-  const profile = await fetchJson(meUrl, {
-    headers: { Authorization: `Bearer ${token.access_token}` }
-  });
-
-  if (!profile.id || !profile.email) {
-    throw new Error("Facebook did not provide an email address. Make sure the email permission is enabled for the app and available on the Facebook account.");
-  }
-
-  return {
-    provider: "FACEBOOK",
-    providerUserId: String(profile.id),
-    email: String(profile.email).trim().toLowerCase(),
-    emailVerified: true,
-    name: String(profile.name || "BlogVerse User").trim().slice(0, 60),
-    avatar: profile.picture?.data?.url ? String(profile.picture.data.url) : null
   };
 }
 
@@ -392,8 +321,7 @@ router.get("/providers", (_req, res) => {
   res.json({
     success: true,
     providers: {
-      google: providerConfig("google")?.configured || false,
-      facebook: providerConfig("facebook")?.configured || false
+      google: providerConfig("google")?.configured || false
     }
   });
 });
@@ -409,7 +337,7 @@ router.post("/:provider/authorization-url", (req, res) => {
     return res.status(503).json({
       success: false,
       code: "OAUTH_NOT_CONFIGURED",
-      message: `${provider === "google" ? "Google" : "Facebook"} sign-in is not configured yet.`
+      message: "Google sign-in is not configured yet."
     });
   }
 
@@ -427,7 +355,7 @@ router.post("/:provider/authorization-url", (req, res) => {
     success: true,
     provider,
     state,
-    authorizationUrl: buildAuthorizationUrl(provider, config, state)
+    authorizationUrl: buildAuthorizationUrl(config, state)
   });
 });
 
@@ -458,9 +386,7 @@ router.post("/:provider/complete", async (req, res) => {
       });
     }
 
-    const profile = provider === "google"
-      ? await googleProfile(code, config)
-      : await facebookProfile(code, config);
+    const profile = await googleProfile(code, config);
 
     const user = await resolveOAuthUser(profile);
 
@@ -484,7 +410,7 @@ router.post("/:provider/complete", async (req, res) => {
     const code = error.code === "ACCOUNT_DISABLED" ? "ACCOUNT_DISABLED" : "OAUTH_FAILED";
     const message = error.code === "ACCOUNT_DISABLED"
       ? error.message
-      : `${provider === "google" ? "Google" : "Facebook"} sign-in could not be completed. Please try again.`;
+      : "Google sign-in could not be completed. Please try again.";
 
     return res.status(error.code === "ACCOUNT_DISABLED" ? 403 : 400).json({
       success: false,
@@ -502,7 +428,7 @@ router.get("/:provider/start", (req, res) => {
     return res.status(404).json({ success: false, message: "Unknown OAuth provider." });
   }
   if (!config.configured) {
-    return providerError(res, "OAUTH_NOT_CONFIGURED", `${provider === "google" ? "Google" : "Facebook"} sign-in is not configured yet.`);
+    return providerError(res, "OAUTH_NOT_CONFIGURED", "Google sign-in is not configured yet.");
   }
 
   const clientState = String(req.query.client_state || "").trim();
@@ -511,7 +437,7 @@ router.get("/:provider/start", (req, res) => {
   }
 
   const state = createSignedState(provider, clientState);
-  return res.redirect(302, buildAuthorizationUrl(provider, config, state));
+  return res.redirect(302, buildAuthorizationUrl(config, state));
 });
 
 router.get("/:provider/callback", async (req, res) => {
@@ -537,9 +463,7 @@ router.get("/:provider/callback", async (req, res) => {
       return providerError(res, "OAUTH_CODE_MISSING", "The OAuth provider did not return an authorization code.");
     }
 
-    const profile = provider === "google"
-      ? await googleProfile(code, config)
-      : await facebookProfile(code, config);
+    const profile = await googleProfile(code, config);
 
     const user = await resolveOAuthUser(profile);
     const loginCode = await createLoginCode(user.id);
@@ -549,7 +473,7 @@ router.get("/:provider/callback", async (req, res) => {
     const code = error.code === "ACCOUNT_DISABLED" ? "ACCOUNT_DISABLED" : "OAUTH_FAILED";
     const message = error.code === "ACCOUNT_DISABLED"
       ? error.message
-      : `${provider === "google" ? "Google" : "Facebook"} sign-in could not be completed. Please try again.`;
+      : "Google sign-in could not be completed. Please try again.";
     return providerError(res, code, message);
   }
 });

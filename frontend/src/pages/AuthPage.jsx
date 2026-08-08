@@ -20,13 +20,13 @@ export default function AuthPage({ mode }) {
   const [busy, setBusy] = useState(false);
   const [recovery, setRecovery] = useState(null);
   const [blockedPrompt, setBlockedPrompt] = useState(null);
-  const [oauthProviders, setOauthProviders] = useState({ google: false, facebook: false });
+  const [oauthProviders, setOauthProviders] = useState({ google: false });
 
   useEffect(() => {
     let active = true;
     api.get("/auth/oauth/providers", { skipRetry: true })
       .then(({ data }) => {
-        if (active) setOauthProviders(data.providers || { google: false, facebook: false });
+        if (active) setOauthProviders(data.providers || { google: false });
       })
       .catch(() => {});
     return () => { active = false; };
@@ -51,8 +51,7 @@ export default function AuthPage({ mode }) {
       );
 
       const authorizationUrl = new URL(String(data.authorizationUrl || ""));
-      const expectedHost = provider === "google" ? "accounts.google.com" : "www.facebook.com";
-      if (authorizationUrl.protocol !== "https:" || authorizationUrl.hostname !== expectedHost || !data.state) {
+      if (provider !== "google" || authorizationUrl.protocol !== "https:" || authorizationUrl.hostname !== "accounts.google.com" || !data.state) {
         throw new Error("The social sign-in provider returned an invalid authorization URL.");
       }
 
@@ -138,11 +137,10 @@ export default function AuthPage({ mode }) {
           <h2>{isLogin ? "Sign in to continue" : "Create your account"}</h2>
           <p>{isLogin ? "Continue your writing journey." : "Start publishing in less than a minute."}</p>
 
-          {(oauthProviders.google || oauthProviders.facebook) && (
+          {oauthProviders.google && (
             <>
               <div className="oauth-options">
-                {oauthProviders.google && <button type="button" className="oauth-button google" onClick={() => startOAuth("google")} disabled={busy}><span className="oauth-brand-mark">G</span><span>Continue with Google</span><span>→</span></button>}
-                {oauthProviders.facebook && <button type="button" className="oauth-button facebook" onClick={() => startOAuth("facebook")} disabled={busy}><span className="oauth-brand-mark">f</span><span>Continue with Facebook</span><span>→</span></button>}
+                <button type="button" className="oauth-button google" onClick={() => startOAuth("google")} disabled={busy}><span className="oauth-brand-mark">G</span><span>Continue with Google</span><span>→</span></button>
               </div>
               <div className="auth-divider"><span>or continue with email</span></div>
             </>

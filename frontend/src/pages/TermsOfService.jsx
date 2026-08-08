@@ -25,7 +25,7 @@ export default function TermsOfService() {
 
           <article className="surface-card legal-card">
             <h2>1. Accounts</h2>
-            <p>You are responsible for accurate account information and for keeping your credentials secure. You may sign in using email/password or supported social sign-in providers. Google or Facebook sign-in does not grant elevated BlogVerse permissions.</p>
+            <p>You are responsible for accurate account information and for keeping your credentials secure. You may sign in using email/password or supported social sign-in providers. Google sign-in does not grant elevated BlogVerse permissions.</p>
           </article>
 
           <article className="surface-card legal-card">
@@ -59,7 +59,7 @@ export default function TermsOfService() {
 
           <article className="surface-card legal-card">
             <h2>6. Social sign-in services</h2>
-            <p>Google and Facebook authentication is provided through third-party platforms and is also subject to those providers' terms and policies. Social sign-in may be unavailable if a provider is unavailable, access is revoked or provider requirements change.</p>
+            <p>Google authentication is provided through a third-party platform and is also subject to Google's terms and policies. Social sign-in may be unavailable if Google is unavailable, access is revoked or provider requirements change.</p>
           </article>
 
           <article className="surface-card legal-card">

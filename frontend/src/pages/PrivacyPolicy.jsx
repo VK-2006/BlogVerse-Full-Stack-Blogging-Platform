@@ -19,7 +19,7 @@ export default function PrivacyPolicy() {
             <LockKeyhole />
             <div>
               <h2>Privacy summary</h2>
-              <p>BlogVerse uses account data to operate the service. Google and Facebook profile data is used for sign-in/account linking. Provider access tokens are used only during the sign-in exchange and are not stored by BlogVerse.</p>
+              <p>BlogVerse uses account data to operate the service. Google profile data is used for sign-in/account linking. Provider access tokens are used only during the sign-in exchange and are not stored by BlogVerse.</p>
             </div>
           </article>
 
@@ -27,7 +27,7 @@ export default function PrivacyPolicy() {
             <h2>1. Information we collect</h2>
             <ul>
               <li><strong>Account information:</strong> name, email address, password hash, avatar, bio, headline, occupation, location, website and social profile link.</li>
-              <li><strong>Social sign-in information:</strong> Google or Facebook provider identifier, provider email, name and profile picture when available.</li>
+              <li><strong>Social sign-in information:</strong> Google provider identifier, provider email, name and profile picture when available.</li>
               <li><strong>Content and activity:</strong> posts, drafts, attachments, links, comments, likes, bookmarks, community posts, replies and related timestamps.</li>
               <li><strong>Support information:</strong> contact name, email, subject, support messages, ticket history and administrator replies.</li>
               <li><strong>Account/security activity:</strong> last-login and last-seen timestamps, password-reset records, account status and deletion scheduling information.</li>
@@ -38,7 +38,7 @@ export default function PrivacyPolicy() {
             <h2>2. How we use information</h2>
             <ul>
               <li>Create, authenticate, secure and maintain BlogVerse accounts.</li>
-              <li>Link Google or Facebook sign-in to the correct BlogVerse account.</li>
+              <li>Link Google sign-in to the correct BlogVerse account.</li>
               <li>Publish and display user-created content and community interactions.</li>
               <li>Provide bookmarks, likes, comments, downloads, profile and dashboard features.</li>
               <li>Respond to support requests and maintain support ticket conversations.</li>
@@ -48,9 +48,9 @@ export default function PrivacyPolicy() {
           </article>
 
           <article className="surface-card legal-card">
-            <h2>3. Google and Facebook sign-in</h2>
+            <h2>3. Google sign-in</h2>
             <p>When you choose a social sign-in provider, BlogVerse redirects you to that provider. After authorization, BlogVerse uses the returned authorization code on the server to obtain the profile details needed for authentication.</p>
-            <p>The current Facebook integration requests basic profile and email permissions. The current Google integration requests OpenID, email and profile scopes. Social providers do not determine BlogVerse roles; authorization roles are controlled by BlogVerse.</p>
+            <p>The current Google integration requests OpenID, email and profile scopes. Google does not determine BlogVerse roles; authorization roles are controlled by BlogVerse.</p>
           </article>
 
           <article className="surface-card legal-card">
@@ -60,7 +60,7 @@ export default function PrivacyPolicy() {
 
           <article className="surface-card legal-card">
             <h2>5. Sharing and service providers</h2>
-            <p>BlogVerse may use infrastructure, database, email-delivery, hosting and media/storage providers to operate the service. Information is shared with those providers only as needed for the relevant functionality. Social sign-in information is exchanged with Google or Meta when you choose those sign-in options.</p>
+            <p>BlogVerse may use infrastructure, database, email-delivery, hosting and media/storage providers to operate the service. Information is shared with those providers only as needed for the relevant functionality. Social sign-in information is exchanged with Google when you choose those sign-in options.</p>
           </article>
 
           <article className="surface-card legal-card">
@@ -75,7 +75,7 @@ export default function PrivacyPolicy() {
             <ul>
               <li>Update editable profile information from your profile.</li>
               <li>Change or reset your password using account-security tools.</li>
-              <li>Revoke Google/Facebook access from the provider's account settings.</li>
+              <li>Revoke Google access from the Google Account settings.</li>
               <li>Request BlogVerse account deletion using the deletion workflow.</li>
               <li>Contact BlogVerse support with privacy or account questions.</li>
             </ul>

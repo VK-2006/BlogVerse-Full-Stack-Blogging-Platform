@@ -10,7 +10,7 @@ const OAUTH_BROWSER_TTL_MS = 10 * 60 * 1000;
 function readPendingOAuth() {
   try {
     const value = JSON.parse(window.sessionStorage.getItem(OAUTH_PENDING_KEY) || "null");
-    if (!value || !["google", "facebook"].includes(value.provider) || !value.state) return null;
+    if (!value || value.provider !== "google" || !value.state) return null;
     if (!Number.isFinite(Number(value.createdAt)) || Date.now() - Number(value.createdAt) > OAUTH_BROWSER_TTL_MS) return null;
     return value;
   } catch {

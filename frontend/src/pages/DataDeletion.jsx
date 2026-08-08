@@ -8,7 +8,7 @@ export default function DataDeletion() {
         <div className="container narrow legal-hero-inner">
           <span className="eyebrow"><Trash2 size={16} /> Data Deletion</span>
           <h1>Delete your BlogVerse account and associated data.</h1>
-          <p>These instructions apply to email/password accounts and accounts created or linked through Google or Facebook.</p>
+          <p>These instructions apply to email/password accounts and accounts created or linked through Google.</p>
           <div className="legal-meta">Last updated: August 8, 2026</div>
         </div>
       </section>
@@ -38,7 +38,7 @@ export default function DataDeletion() {
           </article>
 
           <article className="surface-card legal-card">
-            <h2>Used Google or Facebook and do not know a BlogVerse password?</h2>
+            <h2>Used Google and do not know a BlogVerse password?</h2>
             <p>Use the password-reset flow with the same email address, set a new BlogVerse password, sign in, and then follow the deletion steps above.</p>
             <Link className="button button-ghost" to="/forgot-password"><KeyRound size={17} /> Reset password</Link>
           </article>
@@ -60,10 +60,7 @@ export default function DataDeletion() {
             <Link className="button button-primary" to="/contact">Contact support</Link>
           </article>
 
-          <article className="surface-card legal-card">
-            <h2>Facebook data deletion</h2>
-            <p>If you used Facebook Login, permanent deletion of the BlogVerse user record also removes the Facebook OAuth account link stored by BlogVerse. You can separately revoke BlogVerse access from your Facebook/Meta account settings at any time.</p>
-          </article>
+
         </div>
       </section>
     </main>
