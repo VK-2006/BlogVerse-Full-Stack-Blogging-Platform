@@ -1,7 +1,8 @@
 import { AlertTriangle, ArrowRight, BookOpen, CheckCircle2, RotateCcw, ShieldX, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import api from "../services/api";
 
 export default function AuthPage({ mode }) {
   const isLogin = mode === "login";
@@ -13,11 +14,28 @@ export default function AuthPage({ mode }) {
   const [busy, setBusy] = useState(false);
   const [recovery, setRecovery] = useState(null);
   const [blockedPrompt, setBlockedPrompt] = useState(null);
+  const [oauthProviders, setOauthProviders] = useState({ google: false, facebook: false });
+
+  useEffect(() => {
+    let active = true;
+    api.get("/auth/oauth/providers", { skipRetry: true })
+      .then(({ data }) => {
+        if (active) setOauthProviders(data.providers || { google: false, facebook: false });
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   if (user) return <Navigate to="/dashboard" replace />;
 
   function update(event) {
     setForm({ ...form, [event.target.name]: event.target.value });
+  }
+
+  function startOAuth(provider) {
+    setError("");
+    const baseUrl = String(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/$/, "");
+    window.location.assign(`${baseUrl}/auth/oauth/${provider}/start`);
   }
 
   async function submit(event) {
@@ -86,6 +104,16 @@ export default function AuthPage({ mode }) {
           <span className="overline">{isLogin ? "Welcome back" : "Join BlogVerse"}</span>
           <h2>{isLogin ? "Sign in to continue" : "Create your account"}</h2>
           <p>{isLogin ? "Continue your writing journey." : "Start publishing in less than a minute."}</p>
+
+          {(oauthProviders.google || oauthProviders.facebook) && (
+            <>
+              <div className="oauth-options">
+                {oauthProviders.google && <button type="button" className="oauth-button google" onClick={() => startOAuth("google")}><span className="oauth-brand-mark">G</span><span>Continue with Google</span><span>→</span></button>}
+                {oauthProviders.facebook && <button type="button" className="oauth-button facebook" onClick={() => startOAuth("facebook")}><span className="oauth-brand-mark">f</span><span>Continue with Facebook</span><span>→</span></button>}
+              </div>
+              <div className="auth-divider"><span>or continue with email</span></div>
+            </>
+          )}
 
           <form onSubmit={submit} className="form-stack">
             {!isLogin && (

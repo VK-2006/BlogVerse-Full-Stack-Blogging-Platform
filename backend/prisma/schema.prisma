@@ -38,6 +38,11 @@ enum SupportActor {
   ADMIN
 }
 
+enum OAuthProvider {
+  GOOGLE
+  FACEBOOK
+}
+
 model User {
   id               Int              @id @default(autoincrement())
   name             String
@@ -64,6 +69,8 @@ model User {
   likes            Like[]
   bookmarks        Bookmark[]
   resetTokens      PasswordResetToken[]
+  oauthAccounts     OAuthAccount[]
+  oauthLoginCodes   OAuthLoginCode[]
   communityPosts   CommunityPost[]
   communityReplies CommunityReply[]
   communityLikes   CommunityLike[]
@@ -75,6 +82,34 @@ model User {
   @@index([isDisabled])
   @@index([deletionScheduledFor])
   @@index([lastSeenAt])
+}
+
+model OAuthAccount {
+  id             Int           @id @default(autoincrement())
+  provider       OAuthProvider
+  providerUserId String        @db.VarChar(191)
+  providerEmail  String?       @db.VarChar(191)
+  userId         Int
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([provider, providerUserId])
+  @@unique([provider, userId])
+  @@index([userId])
+}
+
+model OAuthLoginCode {
+  id        Int       @id @default(autoincrement())
+  codeHash  String    @unique @db.VarChar(64)
+  userId    Int
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Category {

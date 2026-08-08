@@ -164,6 +164,11 @@ export function AuthProvider({ children }) {
     };
   }, [user, clearSession]);
 
+  const completeOAuth = useCallback((data) => {
+    saveSession(data);
+    return data;
+  }, [saveSession]);
+
   async function login(credentials) {
     const { data } = await api.post("/auth/login", credentials);
     saveSession(data);
@@ -200,13 +205,14 @@ export function AuthProvider({ children }) {
       login,
       register,
       recoverAccount,
+      completeOAuth,
       logout,
       updateUser,
       clearNotice: () => setNotice(null),
       showNotice: setNotice,
       isAuthenticated: Boolean(user)
     }),
-    [user, loading, authError, notice, updateUser]
+    [user, loading, authError, notice, updateUser, completeOAuth]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

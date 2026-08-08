@@ -20,6 +20,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const AuthPage = lazy(() => import("./pages/AuthPage"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const OAuthCallback = lazy(() => import("./pages/OAuthCallback"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const WritePost = lazy(() => import("./pages/WritePost"));
 const Bookmarks = lazy(() => import("./pages/Bookmarks"));
@@ -42,6 +43,7 @@ function AppRoutes() {
         <Route path="/register" element={<AuthPage mode="register" />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/oauth/callback" element={<OAuthCallback />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/write" element={<ProtectedRoute><WritePost /></ProtectedRoute>} />
         <Route path="/write/:id" element={<ProtectedRoute><WritePost /></ProtectedRoute>} />

@@ -7,6 +7,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import authRoutes from "./routes/auth.js";
+import oauthRoutes from "./routes/oauth.js";
 import postRoutes from "./routes/posts.js";
 import commentRoutes from "./routes/comments.js";
 import userRoutes from "./routes/users.js";
@@ -67,6 +68,7 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+app.use("/api/auth/oauth", oauthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/comments", commentRoutes);
