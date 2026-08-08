@@ -1,16 +1,16 @@
-import crypto from "crypto";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Router } from "express";
 import multer from "multer";
 import { requireAuth } from "../middleware/auth.js";
+import { cloudinaryConfigured, uploadPostFile } from "../utils/cloudinaryStorage.js";
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadDirectory = path.resolve(__dirname, "../../uploads/posts");
-fs.mkdirSync(uploadDirectory, { recursive: true });
+const legacyUploadDirectory = path.resolve(__dirname, "../../uploads/posts");
 
 const allowedMimeTypes = new Set([
   "image/jpeg",
@@ -29,21 +29,8 @@ const allowedMimeTypes = new Set([
   "application/x-zip-compressed"
 ]);
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, callback) => callback(null, uploadDirectory),
-  filename: (_req, file, callback) => {
-    const extension = path.extname(file.originalname).toLowerCase();
-    const safeBase = path
-      .basename(file.originalname, extension)
-      .replace(/[^a-zA-Z0-9-_]/g, "-")
-      .replace(/-+/g, "-")
-      .slice(0, 60) || "file";
-    callback(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}-${safeBase}${extension}`);
-  }
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024,
     files: 5
@@ -56,8 +43,27 @@ const upload = multer({
   }
 });
 
+async function saveLegacyLocalFile(file, baseUrl) {
+  await fs.mkdir(legacyUploadDirectory, { recursive: true });
+  const extension = path.extname(file.originalname).toLowerCase();
+  const safeBase = path
+    .basename(file.originalname, extension)
+    .replace(/[^a-zA-Z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 60) || "file";
+  const storedName = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}-${safeBase}${extension}`;
+  await fs.writeFile(path.join(legacyUploadDirectory, storedName), file.buffer);
+  return {
+    originalName: file.originalname,
+    storedName,
+    url: `${baseUrl}/uploads/posts/${encodeURIComponent(storedName)}`,
+    mimeType: file.mimetype,
+    size: file.size
+  };
+}
+
 router.post("/post", requireAuth, (req, res, next) => {
-  upload.array("files", 5)(req, res, (error) => {
+  upload.array("files", 5)(req, res, async (error) => {
     if (error) {
       const status = error.code === "LIMIT_FILE_SIZE" || error.code === "LIMIT_FILE_COUNT" ? 400 : 415;
       return res.status(status).json({
@@ -71,18 +77,20 @@ router.post("/post", requireAuth, (req, res, next) => {
     }
 
     try {
+      const persistentStorage = cloudinaryConfigured();
       const baseUrl = `${req.protocol}://${req.get("host")}`;
-      const files = (req.files || []).map((file) => ({
-        originalName: file.originalname,
-        storedName: file.filename,
-        url: `${baseUrl}/uploads/posts/${encodeURIComponent(file.filename)}`,
-        mimeType: file.mimetype,
-        size: file.size
-      }));
+      const files = persistentStorage
+        ? await Promise.all((req.files || []).map((file) => uploadPostFile(file)))
+        : await Promise.all((req.files || []).map((file) => saveLegacyLocalFile(file, baseUrl)));
+
+      if (!persistentStorage && process.env.NODE_ENV === "production") {
+        console.warn("Cloudinary is not configured. Uploads are using Render's ephemeral filesystem and can disappear after restart/redeploy.");
+      }
 
       res.status(201).json({
         success: true,
         message: `${files.length} file${files.length === 1 ? "" : "s"} uploaded successfully.`,
+        storage: persistentStorage ? "cloudinary" : "local-ephemeral",
         files
       });
     } catch (uploadError) {

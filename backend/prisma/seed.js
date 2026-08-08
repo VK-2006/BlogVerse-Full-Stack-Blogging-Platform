@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import slugify from "slugify";
 import { PrismaClient } from "@prisma/client";
@@ -21,7 +22,7 @@ async function upsertUser({
   const profile = { name, bio, avatar, headline, occupation, location, website, socialLink };
   return prisma.user.upsert({
     where: { email },
-    update: profile,
+    update: { ...profile, passwordHash, role },
     create: { ...profile, email, passwordHash, role }
   });
 }
@@ -69,8 +70,23 @@ async function ensureComment({ content, userId, postId }) {
 
 async function main() {
   const creatorName = process.env.PROJECT_CREATOR_NAME?.trim() || "Venkat Kiran";
-  const adminPasswordHash = await bcrypt.hash("Admin@123", 12);
-  const writerPasswordHash = await bcrypt.hash("Writer@123", 12);
+  const isProduction = process.env.NODE_ENV === "production";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || (isProduction ? "" : "Admin@123");
+  const writerPassword = isProduction
+    ? crypto.randomBytes(32).toString("base64url")
+    : (process.env.SEED_WRITER_PASSWORD || "Writer@123");
+
+  if (isProduction && (
+    adminPassword.length < 12
+    || !/[A-Z]/.test(adminPassword)
+    || !/[a-z]/.test(adminPassword)
+    || !/[0-9]/.test(adminPassword)
+  )) {
+    throw new Error("SEED_ADMIN_PASSWORD must be set to a strong 12+ character password before running the production seed.");
+  }
+
+  const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
+  const writerPasswordHash = await bcrypt.hash(writerPassword, 12);
 
   const admin = await upsertUser({
     name: creatorName,
@@ -308,8 +324,8 @@ async function main() {
   });
 
   console.log("Database seeded successfully with rich demo content.");
-  console.log("Admin: admin@blogverse.com / Admin@123");
-  console.log("Demo writers: ananya@blogverse.com, arjun@blogverse.com, maya@blogverse.com / Writer@123");
+  console.log(isProduction ? "Admin: admin@blogverse.com (password loaded from SEED_ADMIN_PASSWORD)" : `Admin: admin@blogverse.com / ${adminPassword}`);
+  console.log(isProduction ? "Demo writer passwords were randomized for production." : `Demo writers use / ${writerPassword}`);
 }
 
 main()

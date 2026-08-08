@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import prisma from "../utils/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import { sendContactReplyEmail } from "../utils/mailer.js";
+import { emailDeliveryConfigured, sendContactReplyEmail } from "../utils/mailer.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("ADMIN"));
@@ -247,9 +247,7 @@ router.get("/users/:id/posts", async (req, res, next) => {
         totalPosts,
         publishedPosts,
         draftPosts,
-        blockedPosts,
-        newContactMessages,
-        openContactMessages
+        blockedPosts
       },
       pagination: {
         page,
@@ -564,26 +562,28 @@ router.patch("/contact-messages/:id/reply", async (req, res, next) => {
       }
     });
 
-    let emailSent = false;
-    try {
-      const emailResult = await sendContactReplyEmail({
+    const emailQueued = emailDeliveryConfigured();
+    if (emailQueued) {
+      void sendContactReplyEmail({
         to: updated.email,
         name: updated.name,
         ticketCode: updated.ticketCode || `BV-LEGACY-${updated.id}`,
         subject: updated.subject,
         reply: updated.adminReply
-      });
-      emailSent = Boolean(emailResult.sent);
-    } catch (mailError) {
-      console.error("Contact reply email failed:", mailError);
+      })
+        .then((emailResult) => {
+          if (!emailResult?.sent) console.error("Contact reply email was not sent:", emailResult?.reason || "UNKNOWN");
+        })
+        .catch((mailError) => console.error("Contact reply email failed:", mailError.message));
     }
 
     res.json({
       success: true,
-      message: emailSent
-        ? `Reply sent to ${updated.email} and saved in BlogVerse.`
-        : "Reply saved in BlogVerse. Configure SMTP to also send it by email.",
-      emailSent,
+      message: emailQueued
+        ? `Reply saved in BlogVerse and email queued for ${updated.email}.`
+        : "Reply saved in BlogVerse. Configure Brevo email delivery to also send it by email.",
+      emailQueued,
+      emailSent: false,
       contactMessage: updated
     });
   } catch (error) {

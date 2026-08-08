@@ -15,8 +15,13 @@ export function errorHandler(error, _req, res, _next) {
     });
   }
 
-  res.status(error.status || 500).json({
+  const status = Number(error.status) || 500;
+  const productionMessage = status >= 500 && process.env.NODE_ENV === "production"
+    ? "Internal server error."
+    : error.message || "Internal server error.";
+
+  res.status(status).json({
     success: false,
-    message: error.message || "Internal server error."
+    message: productionMessage
   });
 }

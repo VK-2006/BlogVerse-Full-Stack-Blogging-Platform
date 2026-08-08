@@ -7,6 +7,14 @@ import { optionalAuth, requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
+function isHttpUrl(value) {
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
 const postSelect = {
   id: true,
   title: true,
@@ -35,21 +43,21 @@ const postSelect = {
 const attachmentSchema = z.object({
   originalName: z.string().trim().min(1).max(255),
   storedName: z.string().trim().min(1).max(255),
-  url: z.string().url(),
+  url: z.string().url().refine(isHttpUrl, "Attachment URL must use http:// or https://."),
   mimeType: z.string().trim().min(1).max(150),
   size: z.coerce.number().int().nonnegative().max(10 * 1024 * 1024)
 });
 
 const linkSchema = z.object({
   label: z.string().trim().max(100).optional().nullable(),
-  url: z.string().url("Each related link must be a complete URL beginning with http:// or https://.")
+  url: z.string().url("Each related link must be a complete URL beginning with http:// or https://.").refine(isHttpUrl, "Each related link must use http:// or https://.")
 });
 
 const postSchema = z.object({
   title: z.string().trim().min(1, "Enter a post title.").max(180),
   excerpt: z.string().trim().max(500).default(""),
   content: z.string().trim().default(""),
-  coverImage: z.string().url("Cover image must be a complete URL.").optional().or(z.literal("")),
+  coverImage: z.string().url("Cover image must be a complete URL.").refine(isHttpUrl, "Cover image must use http:// or https://.").optional().or(z.literal("")),
   status: z.enum(["DRAFT", "PUBLISHED"]).default("DRAFT"),
   categoryId: z.coerce.number().int().positive().optional().nullable(),
   tags: z.array(z.string().trim().min(1).max(30)).max(8).default([]),

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
+import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import prisma from "../utils/prisma.js";
 import {
@@ -10,10 +11,37 @@ import {
   verifyToken
 } from "../utils/jwt.js";
 import { requireAuth } from "../middleware/auth.js";
-import { emailDeliveryConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
+import { emailDeliveryConfigured, sendPasswordResetOtp } from "../utils/mailer.js";
 import { removeStoredPostFiles } from "../utils/fileStorage.js";
 
 const router = Router();
+const RESET_OTP_TTL_MINUTES = Math.min(30, Math.max(5, Number(process.env.PASSWORD_RESET_OTP_MINUTES) || 10));
+const RESET_SESSION_TTL_MINUTES = Math.min(30, Math.max(5, Number(process.env.PASSWORD_RESET_SESSION_MINUTES) || 10));
+const MAX_OTP_ATTEMPTS = 5;
+const passwordResetRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many password-reset requests. Please try again in a few minutes." }
+});
+const passwordResetVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many verification attempts. Please try again later." }
+});
+
+function hashResetOtp(userId, otp) {
+  return crypto.createHash("sha256").update(String(userId) + ":" + otp).digest("hex");
+}
+
+function resetOtpMatches(userId, otp, expectedHash) {
+  const actual = Buffer.from(hashResetOtp(userId, otp), "hex");
+  const expected = Buffer.from(String(expectedHash || ""), "hex");
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
 
 const passwordSchema = z.string().min(8).max(72)
   .regex(/[A-Z]/, "Password must contain an uppercase letter.")
@@ -234,61 +262,52 @@ router.post("/offline", async (req, res) => {
   }
 });
 
-router.post("/forgot-password", async (req, res, next) => {
+router.post("/forgot-password", passwordResetRequestLimiter, async (req, res, next) => {
   try {
     const { email } = z.object({ email: z.string().trim().email().toLowerCase() }).parse(req.body);
     const user = await prisma.user.findUnique({ where: { email } });
     const emailReady = emailDeliveryConfigured();
-    const allowResetLinkResponse = String(process.env.ALLOW_RESET_LINK_RESPONSE).toLowerCase() === "true";
 
     const response = {
       success: true,
       delivery: emailReady ? "queued" : "unavailable",
+      requiresOtp: emailReady,
+      expiresInMinutes: RESET_OTP_TTL_MINUTES,
       message: emailReady
-        ? "If an account exists for this email, a password reset link is being sent."
+        ? "If an account exists for this email, a 6-digit password-reset code is being sent."
         : "Password-reset email delivery is not configured on the server yet. Please contact the administrator or try again later."
     };
 
-    if (!user || user.isDisabled || user.isBlocked) return res.json(response);
+    if (!user || user.isDisabled || user.isBlocked || !emailReady) return res.json(response);
 
     await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
 
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    const otp = String(crypto.randomInt(100000, 1000000));
+    const tokenHash = hashResetOtp(user.id, otp);
+    const expiresAt = new Date(Date.now() + RESET_OTP_TTL_MINUTES * 60 * 1000);
 
-    await prisma.passwordResetToken.create({ data: { tokenHash, userId: user.id, expiresAt } });
+    await prisma.passwordResetToken.create({
+      data: { tokenHash, userId: user.id, expiresAt, attempts: 0 }
+    });
 
-    const frontendUrl = String(process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
-    const resetUrl = frontendUrl + "/reset-password/" + rawToken;
-
-    if (emailReady) {
-      void sendPasswordResetEmail({
-        to: user.email,
-        name: user.name,
-        resetUrl
-      })
-        .then((mailResult) => {
-          if (mailResult?.sent) {
-            console.log(`Password reset email queued successfully for user ${user.id}.`);
-          } else {
-            console.error(
-              `Password reset email was not sent for user ${user.id}: ${mailResult?.reason || "UNKNOWN"}`
-            );
-          }
-        })
-        .catch((mailError) => {
+    void sendPasswordResetOtp({
+      to: user.email,
+      name: user.name,
+      otp,
+      expiresMinutes: RESET_OTP_TTL_MINUTES
+    })
+      .then((mailResult) => {
+        if (mailResult?.sent) {
+          console.log(`Password reset OTP queued successfully for user ${user.id}.`);
+        } else {
           console.error(
-            `Password reset background email failed for user ${user.id}:`,
-            mailError.message
+            `Password reset OTP was not sent for user ${user.id}: ${mailResult?.reason || "UNKNOWN"}`
           );
-        });
-    }
-
-    if (allowResetLinkResponse) {
-      response.resetUrl = resetUrl;
-      response.developmentNote = "This demo link is visible because ALLOW_RESET_LINK_RESPONSE=true. Disable it after testing email delivery.";
-    }
+        }
+      })
+      .catch((mailError) => {
+        console.error(`Password reset OTP email failed for user ${user.id}:`, mailError.message);
+      });
 
     res.json(response);
   } catch (error) {
@@ -299,20 +318,83 @@ router.post("/forgot-password", async (req, res, next) => {
   }
 });
 
-router.post("/reset-password/:token", async (req, res, next) => {
+router.post("/verify-reset-otp", passwordResetVerifyLimiter, async (req, res, next) => {
+  try {
+    const { email, otp } = z.object({
+      email: z.string().trim().email().toLowerCase(),
+      otp: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code from your email.")
+    }).parse(req.body);
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.isDisabled || user.isBlocked) {
+      return res.status(400).json({ success: false, message: "The code is invalid or has expired." });
+    }
+
+    const resetRequest = await prisma.passwordResetToken.findFirst({
+      where: { userId: user.id, usedAt: null },
+      orderBy: { createdAt: "desc" }
+    });
+
+    if (!resetRequest || resetRequest.expiresAt <= new Date() || resetRequest.attempts >= MAX_OTP_ATTEMPTS) {
+      return res.status(400).json({ success: false, message: "The code is invalid or has expired. Request a new code." });
+    }
+
+    if (!resetOtpMatches(user.id, otp, resetRequest.tokenHash)) {
+      const nextAttempts = resetRequest.attempts + 1;
+      await prisma.passwordResetToken.update({
+        where: { id: resetRequest.id },
+        data: { attempts: nextAttempts }
+      });
+      return res.status(400).json({
+        success: false,
+        message: nextAttempts >= MAX_OTP_ATTEMPTS
+          ? "Too many incorrect attempts. Request a new code."
+          : "The code is invalid or has expired."
+      });
+    }
+
+    const rawResetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenHash = crypto.createHash("sha256").update(rawResetToken).digest("hex");
+    const verifiedAt = new Date();
+    const expiresAt = new Date(verifiedAt.getTime() + RESET_SESSION_TTL_MINUTES * 60 * 1000);
+
+    await prisma.passwordResetToken.update({
+      where: { id: resetRequest.id },
+      data: {
+        resetTokenHash,
+        verifiedAt,
+        expiresAt
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Code verified. Create your new password.",
+      resetToken: rawResetToken,
+      expiresInMinutes: RESET_SESSION_TTL_MINUTES
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ success: false, message: error.issues[0]?.message || "Enter a valid verification code." });
+    }
+    next(error);
+  }
+});
+
+router.post("/reset-password/:token", passwordResetVerifyLimiter, async (req, res, next) => {
   try {
     const { password } = z.object({ password: passwordSchema }).parse(req.body);
-    const tokenHash = crypto.createHash("sha256").update(req.params.token).digest("hex");
+    const resetTokenHash = crypto.createHash("sha256").update(req.params.token).digest("hex");
 
     const resetToken = await prisma.passwordResetToken.findUnique({
-      where: { tokenHash },
+      where: { resetTokenHash },
       include: { user: true }
     });
 
-    if (!resetToken || resetToken.usedAt || resetToken.expiresAt <= new Date()) {
+    if (!resetToken || !resetToken.verifiedAt || resetToken.usedAt || resetToken.expiresAt <= new Date()) {
       return res.status(400).json({
         success: false,
-        message: "This password reset link is invalid or has expired."
+        message: "This password reset session is invalid or has expired."
       });
     }
     if (resetToken.user.isDisabled || resetToken.user.isBlocked) {

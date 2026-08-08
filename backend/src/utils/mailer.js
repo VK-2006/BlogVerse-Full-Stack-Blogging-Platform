@@ -64,22 +64,22 @@ async function sendEmail({ to, toName, subject, text, html }) {
   return { sent: true, provider: "brevo", id: body.messageId || null };
 }
 
-export async function sendPasswordResetEmail({ to, name, resetUrl }) {
+export async function sendPasswordResetOtp({ to, name, otp, expiresMinutes = 10 }) {
   const safeName = escapeHtml(name);
-  const safeUrl = escapeHtml(resetUrl);
+  const safeOtp = escapeHtml(otp);
 
   return sendEmail({
     to,
     toName: name,
-    subject: "Reset your BlogVerse password",
-    text: `Hello ${name}, reset your BlogVerse password using this link: ${resetUrl}. This link expires in 30 minutes.`,
+    subject: "Your BlogVerse password reset code",
+    text: `Hello ${name}, your BlogVerse password reset code is ${otp}. It expires in ${expiresMinutes} minutes. Never share this code with anyone.`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;padding:32px;color:#101828;background:#ffffff">
         <div style="font-size:24px;font-weight:800;color:#6d4aff;margin-bottom:24px">BlogVerse</div>
-        <h1 style="font-size:28px;margin:0 0 12px">Reset your password</h1>
-        <p style="line-height:1.7;color:#475467">Hello ${safeName}, we received a request to reset your BlogVerse password.</p>
-        <a href="${safeUrl}" style="display:inline-block;margin:18px 0;padding:14px 22px;border-radius:12px;background:#6d4aff;color:#fff;text-decoration:none;font-weight:700">Reset password</a>
-        <p style="line-height:1.7;color:#667085">This secure link expires in 30 minutes and can be used only once.</p>
+        <h1 style="font-size:28px;margin:0 0 12px">Password reset code</h1>
+        <p style="line-height:1.7;color:#475467">Hello ${safeName}, use this one-time code to continue resetting your BlogVerse password.</p>
+        <div style="display:inline-block;margin:18px 0;padding:16px 24px;border-radius:12px;background:#f4f1ff;border:1px solid #ddd6fe;color:#4c1d95;font-size:30px;font-weight:800;letter-spacing:8px">${safeOtp}</div>
+        <p style="line-height:1.7;color:#667085">This code expires in ${expiresMinutes} minutes. BlogVerse support will never ask you to share it.</p>
       </div>`
   });
 }

@@ -51,6 +51,16 @@ router.post("/post/:postId", requireAuth, async (req, res, next) => {
     });
     if (!availablePost) return res.status(404).json({ success: false, message: "Post not found or unavailable." });
 
+    if (data.parentId) {
+      const parent = await prisma.comment.findFirst({
+        where: { id: data.parentId, postId, parentId: null },
+        select: { id: true }
+      });
+      if (!parent) {
+        return res.status(400).json({ success: false, message: "The reply target is invalid for this post." });
+      }
+    }
+
     const comment = await prisma.comment.create({
       data: {
         content: data.content,

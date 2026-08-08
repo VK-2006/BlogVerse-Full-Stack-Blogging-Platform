@@ -5,6 +5,18 @@ import prisma from "../utils/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
+const passwordSchema = z.string().min(8).max(72)
+  .regex(/[A-Z]/, "Password must contain an uppercase letter.")
+  .regex(/[a-z]/, "Password must contain a lowercase letter.")
+  .regex(/[0-9]/, "Password must contain a number.");
+
+function isHttpUrl(value) {
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
 const publicUserSelect = {
   id: true,
   name: true,
@@ -145,6 +157,38 @@ router.get("/account/status", requireAuth, async (req, res, next) => {
   }
 });
 
+router.post("/account/change-password", requireAuth, async (req, res, next) => {
+  try {
+    const data = z.object({
+      currentPassword: z.string().min(1, "Enter your current password."),
+      newPassword: passwordSchema
+    }).parse(req.body);
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user || !(await bcrypt.compare(data.currentPassword, user.passwordHash))) {
+      return res.status(401).json({ success: false, message: "Your current password is incorrect." });
+    }
+    if (await bcrypt.compare(data.newPassword, user.passwordHash)) {
+      return res.status(400).json({ success: false, message: "Choose a new password that is different from your current password." });
+    }
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: await bcrypt.hash(data.newPassword, 12) }
+      }),
+      prisma.passwordResetToken.deleteMany({ where: { userId: user.id } })
+    ]);
+
+    res.json({ success: true, message: "Password changed successfully." });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ success: false, message: error.issues[0]?.message });
+    }
+    next(error);
+  }
+});
+
 router.post("/account/deletion-request", requireAuth, async (req, res, next) => {
   try {
     const data = z.object({
@@ -204,10 +248,10 @@ router.patch("/profile", requireAuth, async (req, res, next) => {
       headline: z.string().trim().max(120).optional().or(z.literal("")),
       occupation: z.string().trim().max(120).optional().or(z.literal("")),
       location: z.string().trim().max(120).optional().or(z.literal("")),
-      website: z.string().url("Website must be a complete URL.").optional().or(z.literal("")),
-      socialLink: z.string().url("Social link must be a complete URL.").optional().or(z.literal("")),
+      website: z.string().url("Website must be a complete URL.").refine(isHttpUrl, "Website must use http:// or https://.").optional().or(z.literal("")),
+      socialLink: z.string().url("Social link must be a complete URL.").refine(isHttpUrl, "Social link must use http:// or https://.").optional().or(z.literal("")),
       bio: z.string().trim().max(500).optional().or(z.literal("")),
-      avatar: z.string().url("Avatar must be a complete URL.").optional().or(z.literal(""))
+      avatar: z.string().url("Avatar must be a complete URL.").refine(isHttpUrl, "Avatar URL must use http:// or https://.").optional().or(z.literal(""))
     });
     const data = schema.parse(req.body);
     const user = await prisma.user.update({

@@ -176,13 +176,16 @@ model Bookmark {
 }
 
 model PasswordResetToken {
-  id        Int      @id @default(autoincrement())
-  tokenHash String   @unique @db.VarChar(64)
-  userId    Int
-  expiresAt DateTime
-  usedAt    DateTime?
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  tokenHash      String   @unique @db.VarChar(64)
+  resetTokenHash String?  @unique @db.VarChar(64)
+  userId         Int
+  expiresAt      DateTime
+  attempts       Int      @default(0)
+  verifiedAt     DateTime?
+  usedAt         DateTime?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
 
   @@index([userId])
   @@index([expiresAt])

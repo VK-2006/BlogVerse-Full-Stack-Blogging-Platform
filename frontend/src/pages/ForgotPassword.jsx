@@ -1,19 +1,23 @@
-import { AlertCircle, ArrowLeft, CheckCircle2, ExternalLink, KeyRound, Mail, RotateCcw } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, KeyRound, Mail, RefreshCw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../services/api";
 
 export default function ForgotPassword() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [stage, setStage] = useState("email");
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resending, setResending] = useState(false);
 
-  async function submit(event) {
-    event.preventDefault();
+  async function requestCode(event, resend = false) {
+    event?.preventDefault?.();
     setError("");
-    setResult(null);
-    setBusy(true);
+    setBusy(!resend);
+    setResending(resend);
 
     try {
       const { data } = await api.post(
@@ -22,16 +26,39 @@ export default function ForgotPassword() {
         { timeout: 30000 }
       );
       setResult(data);
+      if (data.delivery === "queued") {
+        setStage("otp");
+        setOtp("");
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
+      setResending(false);
+    }
+  }
+
+  async function verifyCode(event) {
+    event.preventDefault();
+    if (!/^\d{6}$/.test(otp)) {
+      setError("Enter the 6-digit code from your email.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const { data } = await api.post(
+        "/auth/verify-reset-otp",
+        { email, otp },
+        { timeout: 20000 }
+      );
+      navigate(`/reset-password/${data.resetToken}`, { replace: true });
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setBusy(false);
     }
-  }
-
-  function tryAnotherEmail() {
-    setResult(null);
-    setError("");
   }
 
   const emailUnavailable = result?.delivery === "unavailable";
@@ -43,13 +70,13 @@ export default function ForgotPassword() {
         <Link className="back-link" to="/login"><ArrowLeft size={17} /> Back to sign in</Link>
         <div className="action-icon"><KeyRound /></div>
 
-        {!result ? (
+        {stage === "email" ? (
           <>
             <span className="overline">Password recovery</span>
             <h1>Forgot your password?</h1>
-            <p>Enter your BlogVerse account email. A secure link will be valid for 30 minutes.</p>
+            <p>Enter your BlogVerse account email. We will send a secure 6-digit code through Brevo.</p>
 
-            <form className="form-stack" onSubmit={submit}>
+            <form className="form-stack" onSubmit={requestCode}>
               <label>
                 Email address
                 <div className="input-with-icon">
@@ -65,40 +92,62 @@ export default function ForgotPassword() {
                 </div>
               </label>
               {error && <div className="form-error"><AlertCircle size={18} /> {error}</div>}
+              {emailUnavailable && <div className="form-error"><AlertCircle size={18} /> {result.message}</div>}
               <button className="button button-primary button-large full" disabled={busy}>
-                {busy ? "Sending secure link..." : "Send reset link"}
+                {busy ? "Sending code..." : "Send 6-digit code"}
               </button>
             </form>
           </>
         ) : (
-          <div className={`success-panel ${emailUnavailable ? "password-mail-warning" : ""}`}>
-            {emailUnavailable ? <AlertCircle /> : <CheckCircle2 />}
-            <span className="overline">Password recovery</span>
-            <h1>{emailUnavailable ? "Email delivery needs configuration" : "Check your email"}</h1>
-            <p>{result.message}</p>
+          <>
+            <span className="overline">Verify your email</span>
+            <h1>Enter the 6-digit code</h1>
+            <p>We sent a password-reset code to <strong>{email}</strong>. It expires in {result?.expiresInMinutes || 10} minutes.</p>
 
-            {!emailUnavailable && (
-              <div className="password-email-tips">
-                <strong>Did not receive it?</strong>
-                <span>Check Spam or Promotions, confirm the email spelling and allow a minute for delivery.</span>
-              </div>
-            )}
-
-            {result.resetUrl && (
-              <div className="development-link">
-                <strong>Temporary demo reset link</strong>
-                <a href={result.resetUrl}>Open reset-password page <ExternalLink size={15} /></a>
-                <small>{result.developmentNote}</small>
-              </div>
-            )}
-
-            <div className="password-result-actions">
-              <button type="button" className="button button-ghost button-large full" onClick={tryAnotherEmail}>
-                <RotateCcw size={17} /> Try another email
-              </button>
-              <Link className="button button-primary button-large full" to="/login">Return to sign in</Link>
+            <div className="success-panel password-mail-success">
+              <CheckCircle2 />
+              <strong>Code sent</strong>
+              <span>Check Inbox, Spam or Promotions if it does not appear immediately.</span>
             </div>
-          </div>
+
+            <form className="form-stack" onSubmit={verifyCode}>
+              <label>
+                Verification code
+                <div className="input-with-icon">
+                  <ShieldCheck size={18} />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={otp}
+                    onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="123456"
+                    maxLength={6}
+                    required
+                  />
+                </div>
+              </label>
+              {error && <div className="form-error"><AlertCircle size={18} /> {error}</div>}
+              <button className="button button-primary button-large full" disabled={busy || otp.length !== 6}>
+                {busy ? "Verifying..." : "Verify code"}
+              </button>
+              <button
+                type="button"
+                className="button button-ghost button-large full"
+                onClick={(event) => requestCode(event, true)}
+                disabled={resending || busy}
+              >
+                <RefreshCw size={17} /> {resending ? "Sending again..." : "Resend code"}
+              </button>
+              <button
+                type="button"
+                className="button button-ghost full"
+                onClick={() => { setStage("email"); setOtp(""); setError(""); }}
+              >
+                Use a different email
+              </button>
+            </form>
+          </>
         )}
       </section>
     </main>
