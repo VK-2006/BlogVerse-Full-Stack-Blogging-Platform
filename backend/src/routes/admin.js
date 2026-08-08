@@ -444,7 +444,7 @@ router.get("/posts/:id", async (req, res, next) => {
 
     if (!post) return res.status(404).json({ success: false, message: "Post not found." });
     const contentText = storyHtmlToPlainText(post.content);
-    const wordCount = contentText ? contentText.split(/\\s+/).filter(Boolean).length : 0;
+    const wordCount = contentText ? contentText.split(/\s+/).filter(Boolean).length : 0;
 
     res.json({
       success: true,
