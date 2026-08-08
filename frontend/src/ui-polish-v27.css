@@ -1,0 +1,484 @@
+/* BlogVerse V27 — full-page UI consistency, responsive and theme hardening.
+   Loaded last so it corrects verified visual/layout edge cases without replacing the design system. */
+
+/* ---------- Theme + resilient content ---------- */
+[data-theme="dark"] {
+  --primary-2: #b7a8ff;
+}
+
+html,
+body,
+#root {
+  max-width: 100%;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:is(h1, h2, h3, h4, p, strong, span, dd, td, th, a, button) {
+  overflow-wrap: break-word;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+  transition: background-color 9999s ease-out 0s;
+}
+
+/* ---------- Home ---------- */
+.starter-card > strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 20px;
+  color: var(--primary-2);
+  font-weight: 800;
+}
+
+.quote-card > svg {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  color: #ddd6fe;
+}
+
+.quote-card blockquote {
+  min-width: 0;
+  flex: 1 1 460px;
+  margin: 0;
+  color: #fff;
+  font: 800 clamp(26px, 3.2vw, 42px)/1.25 "Manrope", sans-serif;
+  letter-spacing: -.035em;
+}
+
+.quote-card > p {
+  max-width: 260px;
+  color: #e8e8ff;
+}
+
+/* ---------- About ---------- */
+.value-card {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.value-card > div:first-child {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 22px;
+  border-radius: 14px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+}
+
+.value-card > div:first-child svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* ---------- Explore ---------- */
+.explore-toolbar,
+.explore-toolbar > div {
+  min-width: 0;
+}
+
+.explore-feature-content,
+.explore-feature-image {
+  min-width: 0;
+}
+
+/* ---------- Communities ---------- */
+.pulse-card-heading > svg {
+  width: 50px;
+  height: 50px;
+  flex: 0 0 auto;
+  padding: 13px;
+  border-radius: 14px;
+  color: #fbbf24;
+  background: rgba(255,255,255,.12);
+}
+
+.pulse-card-heading > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.pulse-card-heading strong {
+  color: #fff;
+  font-size: 18px;
+}
+
+.pulse-card-heading span {
+  color: #b7c5d7;
+  font-size: 13px;
+}
+
+/* ---------- Dashboard ---------- */
+@media (min-width: 1181px) {
+  .dashboard-page .stat-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .dashboard-page .stat-card {
+    min-width: 0;
+  }
+}
+
+.draft-card-body,
+.draft-actions,
+.table-actions {
+  min-width: 0;
+}
+
+/* ---------- Profile ---------- */
+.profile-avatar-wrap > img {
+  width: 130px;
+  height: 130px;
+  display: block;
+  object-fit: cover;
+  border-radius: 34px;
+  border: 6px solid var(--surface);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-lg);
+}
+
+.profile-details-heading,
+.profile-editor > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-detail-icon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
+}
+
+.profile-input-icon {
+  position: relative;
+}
+
+.profile-input-icon > svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-3);
+}
+
+.profile-input-icon input {
+  padding-left: 42px;
+}
+
+/* ---------- Account settings ---------- */
+.account-settings-grid > .danger-settings-card {
+  grid-column: 1 / -1;
+}
+
+.account-settings-grid > .danger-settings-card .danger-settings-content {
+  max-width: 840px;
+}
+
+/* ---------- Bookmarks ---------- */
+.bookmarks-page .bookmarks-status {
+  margin-bottom: 22px;
+}
+
+/* ---------- Article ---------- */
+.article-content {
+  min-width: 0;
+}
+
+.article-content blockquote {
+  margin: 30px 0;
+  padding: 18px 22px;
+  border-left: 4px solid var(--primary);
+  border-radius: 0 14px 14px 0;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.comment > div:last-child {
+  min-width: 0;
+}
+
+.comment > div:last-child > span {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* ---------- Editor ---------- */
+.write-topbar > div,
+.editor-heading-row,
+.setting-group,
+.attachment-editor-item {
+  min-width: 0;
+}
+
+/* ---------- Contact ---------- */
+.contact-layout > *,
+.support-request-head > div {
+  min-width: 0;
+}
+
+/* ---------- Admin ---------- */
+.admin-console,
+.admin-panel,
+.admin-user-card,
+.admin-post-card,
+.admin-message-card,
+.admin-toolbar,
+.admin-toolbar-controls,
+.admin-card-head > div {
+  min-width: 0;
+}
+
+.admin-tabs {
+  scrollbar-width: thin;
+}
+
+.admin-detail-lines strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.modal-card,
+.app-prompt,
+.admin-drawer {
+  overscroll-behavior: contain;
+}
+
+.modal-card {
+  max-height: calc(100dvh - 40px);
+}
+
+/* ---------- Navigation ---------- */
+.mobile-nav-only {
+  display: none !important;
+}
+
+/* Move to compact navigation earlier so authenticated menus cannot collide. */
+@media (max-width: 1080px) {
+  .nav-links {
+    position: fixed;
+    top: 76px;
+    left: 14px;
+    right: 14px;
+    z-index: 1100;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    box-shadow: var(--shadow-lg);
+    max-height: calc(100dvh - 92px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .nav-links.open {
+    display: flex;
+  }
+
+  .nav-links a {
+    justify-content: flex-start;
+    padding: 12px;
+  }
+
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 76px 0 0;
+    z-index: 1050;
+    border: 0;
+    background: var(--overlay);
+  }
+
+  .menu-button {
+    display: inline-grid;
+  }
+
+  .desktop-only,
+  .nav-user-pill,
+  .desktop-profile-button,
+  .nav-write-button {
+    display: none !important;
+  }
+
+  .mobile-nav-only {
+    display: inline-flex !important;
+  }
+}
+
+/* ---------- Tablet ---------- */
+@media (max-width: 960px) {
+  .quote-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .quote-card > p,
+  .quote-actions {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 720px) {
+  .simple-header h1,
+  .profile-hero h1,
+  .admin-hero h1 {
+    font-size: clamp(36px, 11vw, 52px);
+    line-height: 1.06;
+  }
+
+  .section-heading > a,
+  .section-heading > button {
+    white-space: normal;
+  }
+
+  .explore-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sort-control {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .sort-control select {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+
+  .about-visual {
+    min-height: 360px;
+  }
+
+  .floating-note {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .note-one { left: 14px; top: 24px; }
+  .note-two { right: 12px; top: 124px; }
+  .note-three { left: 28px; bottom: 34px; }
+
+  .profile-avatar-wrap > img {
+    width: 108px;
+    height: 108px;
+    border-radius: 28px;
+  }
+
+  .account-settings-grid > .danger-settings-card {
+    grid-column: auto;
+  }
+
+  .settings-card {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-card-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .account-detail-list > div,
+  .admin-detail-lines p {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .admin-detail-lines strong {
+    text-align: left;
+  }
+
+  .quote-card {
+    display: flex;
+  }
+
+  .quote-card blockquote {
+    font-size: clamp(25px, 8vw, 34px);
+  }
+
+  .article-content {
+    font-size: 18px;
+    line-height: 1.82;
+  }
+
+  .write-topbar > div {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .write-topbar > div .button {
+    flex: 1 1 180px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-actions .button-primary {
+    max-width: 112px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-details-card,
+  .profile-editor,
+  .dashboard-panel,
+  .settings-card,
+  .support-conversation-card,
+  .admin-user-card,
+  .admin-message-card {
+    border-radius: 18px;
+  }
+
+  .admin-card-actions .button,
+  .draft-actions .button {
+    flex: 1 1 100%;
+  }
+
+  .draft-actions .icon-danger-button {
+    min-width: 44px;
+  }
+}
+
+/* Motion must stay optional. */
+@media (prefers-reduced-motion: reduce) {
+  .topic-marquee-track {
+    animation: none !important;
+    transform: none !important;
+  }
+}

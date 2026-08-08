@@ -11,7 +11,9 @@ export default function AccountSettings() {
   const [form, setForm] = useState({ password: "", confirmation: "" });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [passwordMessage, setPasswordMessage] = useState("");
-  const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [deletionError, setDeletionError] = useState("");
   const [busy, setBusy] = useState(false);
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [scheduled, setScheduled] = useState(null);
@@ -19,16 +21,16 @@ export default function AccountSettings() {
   useEffect(() => {
     api.get("/users/account/status")
       .then(({ data }) => setAccount(data.account))
-      .catch((requestError) => setError(requestError.message));
+      .catch((requestError) => setLoadError(requestError.message));
   }, []);
 
   async function changePassword(event) {
     event.preventDefault();
-    setError("");
+    setPasswordError("");
     setPasswordMessage("");
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setError("New passwords do not match.");
+      setPasswordError("New passwords do not match.");
       return;
     }
 
@@ -41,7 +43,7 @@ export default function AccountSettings() {
       setPasswordMessage(data.message);
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (requestError) {
-      setError(requestError.message);
+      setPasswordError(requestError.message);
     } finally {
       setPasswordBusy(false);
     }
@@ -49,13 +51,13 @@ export default function AccountSettings() {
 
   async function scheduleDeletion(event) {
     event.preventDefault();
-    setError("");
+    setDeletionError("");
     setBusy(true);
     try {
       const { data } = await api.post("/users/account/deletion-request", form);
       setScheduled(data);
     } catch (requestError) {
-      setError(requestError.message);
+      setDeletionError(requestError.message);
     } finally {
       setBusy(false);
     }
@@ -85,6 +87,7 @@ export default function AccountSettings() {
               <span className="overline">Account information</span>
               <h2>{user?.name}</h2>
               <p>{user?.email}</p>
+              {loadError && <div className="form-error">{loadError}</div>}
               <dl className="account-detail-list">
                 <div><dt>Role</dt><dd>{account?.role || user?.role}</dd></div>
                 <div><dt>Last login</dt><dd>{account?.lastLoginAt ? new Date(account.lastLoginAt).toLocaleString() : "Current session"}</dd></div>
@@ -132,7 +135,7 @@ export default function AccountSettings() {
                   />
                 </label>
                 {passwordMessage && <div className="form-success">{passwordMessage}</div>}
-                {error && <div className="form-error">{error}</div>}
+                {passwordError && <div className="form-error">{passwordError}</div>}
                 <button className="button button-primary button-large" disabled={passwordBusy}>
                   <KeyRound size={18} /> {passwordBusy ? "Updating..." : "Update password"}
                 </button>
@@ -161,6 +164,7 @@ export default function AccountSettings() {
                   Confirm your password
                   <input
                     type="password"
+                    autoComplete="current-password"
                     value={form.password}
                     onChange={(event) => setForm({ ...form, password: event.target.value })}
                     placeholder="Enter your current password"
@@ -173,10 +177,11 @@ export default function AccountSettings() {
                     value={form.confirmation}
                     onChange={(event) => setForm({ ...form, confirmation: event.target.value.toUpperCase() })}
                     placeholder="DELETE"
+                    autoComplete="off"
                     required
                   />
                 </label>
-                {error && <div className="form-error">{error}</div>}
+                {deletionError && <div className="form-error">{deletionError}</div>}
                 <button
                   className="button button-danger button-large"
                   disabled={busy || form.confirmation !== "DELETE" || !form.password}
