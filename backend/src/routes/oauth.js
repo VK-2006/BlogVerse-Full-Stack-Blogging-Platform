@@ -7,9 +7,9 @@ import { signToken } from "../utils/jwt.js";
 
 const router = Router();
 
-const OAUTH_STATE_COOKIE = "blogverse_oauth_state";
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const OAUTH_CODE_TTL_MS = 2 * 60 * 1000;
+const OAUTH_CLIENT_STATE_PATTERN = /^[A-Za-z0-9_-]{32,160}$/;
 const OAUTH_FETCH_TIMEOUT_MS = Math.min(20000, Math.max(5000, Number(process.env.OAUTH_FETCH_TIMEOUT_MS) || 10000));
 
 const safeUserSelect = {
@@ -74,44 +74,59 @@ function providerConfig(provider) {
   return null;
 }
 
-function readCookie(req, name) {
-  const header = String(req.headers.cookie || "");
-  for (const part of header.split(";")) {
-    const [rawKey, ...rawValue] = part.trim().split("=");
-    if (rawKey !== name) continue;
-    try {
-      return decodeURIComponent(rawValue.join("="));
-    } catch {
-      return rawValue.join("=");
-    }
-  }
-  return "";
+function stateSigningKey() {
+  const secret = String(process.env.JWT_SECRET || "");
+  if (!secret) throw new Error("JWT_SECRET is required for OAuth state signing.");
+  return crypto.createHash("sha256").update(`blogverse:oauth-state:v2:${secret}`).digest();
 }
 
-function setStateCookie(res, state) {
-  res.cookie(OAUTH_STATE_COOKIE, state, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/api/auth/oauth",
-    maxAge: OAUTH_STATE_TTL_MS
-  });
-}
-
-function clearStateCookie(res) {
-  res.clearCookie(OAUTH_STATE_COOKIE, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/api/auth/oauth"
-  });
-}
-
-function stateMatches(expected, actual) {
-  if (!expected || !actual) return false;
-  const a = Buffer.from(String(expected));
-  const b = Buffer.from(String(actual));
+function safeTextEqual(left, right) {
+  if (!left || !right) return false;
+  const a = Buffer.from(String(left));
+  const b = Buffer.from(String(right));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function createSignedState(provider, clientState) {
+  const payload = {
+    v: 2,
+    p: provider,
+    c: clientState,
+    n: crypto.randomBytes(24).toString("base64url"),
+    iat: Date.now()
+  };
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = crypto.createHmac("sha256", stateSigningKey()).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+function verifySignedState(value, provider) {
+  try {
+    const parts = String(value || "").split(".");
+    if (parts.length !== 2) return null;
+
+    const [encoded, signature] = parts;
+    const expected = crypto.createHmac("sha256", stateSigningKey()).update(encoded).digest("base64url");
+    if (!safeTextEqual(signature, expected)) return null;
+
+    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+    const age = Date.now() - Number(payload.iat);
+
+    if (
+      payload.v !== 2 ||
+      payload.p !== provider ||
+      !OAUTH_CLIENT_STATE_PATTERN.test(String(payload.c || "")) ||
+      !Number.isFinite(Number(payload.iat)) ||
+      age < -60_000 ||
+      age > OAUTH_STATE_TTL_MS
+    ) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 function redirectFrontend(res, params = {}) {
@@ -371,8 +386,12 @@ router.get("/:provider/start", (req, res) => {
     return providerError(res, "OAUTH_NOT_CONFIGURED", `${provider === "google" ? "Google" : "Facebook"} sign-in is not configured yet.`);
   }
 
-  const state = crypto.randomBytes(32).toString("base64url");
-  setStateCookie(res, state);
+  const clientState = String(req.query.client_state || "").trim();
+  if (!OAUTH_CLIENT_STATE_PATTERN.test(clientState)) {
+    return providerError(res, "OAUTH_CLIENT_STATE_INVALID", "A secure social sign-in session could not be started. Please refresh and try again.");
+  }
+
+  const state = createSignedState(provider, clientState);
 
   if (provider === "google") {
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -402,20 +421,15 @@ router.get("/:provider/callback", async (req, res) => {
 
   try {
     if (!config || !config.configured) {
-      clearStateCookie(res);
       return providerError(res, "OAUTH_NOT_CONFIGURED", "This social sign-in provider is not configured.");
     }
 
     if (req.query.error) {
-      clearStateCookie(res);
       return providerError(res, "OAUTH_CANCELLED", "Social sign-in was cancelled or permission was not granted.");
     }
 
-    const expectedState = readCookie(req, OAUTH_STATE_COOKIE);
-    const actualState = String(req.query.state || "");
-    clearStateCookie(res);
-
-    if (!stateMatches(expectedState, actualState)) {
+    const statePayload = verifySignedState(String(req.query.state || ""), provider);
+    if (!statePayload) {
       return providerError(res, "OAUTH_STATE_INVALID", "The social sign-in session expired or could not be verified. Please try again.");
     }
 
@@ -430,7 +444,7 @@ router.get("/:provider/callback", async (req, res) => {
 
     const user = await resolveOAuthUser(profile);
     const loginCode = await createLoginCode(user.id);
-    return redirectFrontend(res, { code: loginCode, provider });
+    return redirectFrontend(res, { code: loginCode, provider, state: statePayload.c });
   } catch (error) {
     console.error(`OAuth ${provider} callback failed:`, error.message);
     const code = error.code === "ACCOUNT_DISABLED" ? "ACCOUNT_DISABLED" : "OAUTH_FAILED";

@@ -19,6 +19,10 @@ export default function OAuthCallback() {
     const providerError = params.get("error");
     const providerMessage = params.get("message");
     const code = params.get("code");
+    const provider = params.get("provider");
+    const returnedState = params.get("state");
+    const storageKey = provider ? `blogverse_oauth_state_${provider}` : "";
+    const expectedState = storageKey ? window.sessionStorage.getItem(storageKey) : "";
 
     window.history.replaceState({}, document.title, "/oauth/callback");
 
@@ -28,12 +32,20 @@ export default function OAuthCallback() {
       return;
     }
 
-    if (!code) {
+    if (!code || !provider || !["google", "facebook"].includes(provider)) {
       setError("The social sign-in response is incomplete. Please try again.");
       setStatus("");
       return;
     }
 
+    if (!returnedState || !expectedState || returnedState !== expectedState) {
+      if (storageKey) window.sessionStorage.removeItem(storageKey);
+      setError("The social sign-in session could not be verified in this browser. Please try again from the login page.");
+      setStatus("");
+      return;
+    }
+
+    window.sessionStorage.removeItem(storageKey);
     let active = true;
 
     api.post("/auth/oauth/exchange", { code }, { timeout: 15000, skipRetry: true })

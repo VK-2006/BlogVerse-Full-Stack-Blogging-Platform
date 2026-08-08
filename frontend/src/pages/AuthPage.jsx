@@ -4,6 +4,12 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 
+function createOAuthClientState() {
+  const bytes = new Uint8Array(24);
+  window.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
 export default function AuthPage({ mode }) {
   const isLogin = mode === "login";
   const { user, login, register, recoverAccount } = useAuth();
@@ -34,8 +40,16 @@ export default function AuthPage({ mode }) {
 
   function startOAuth(provider) {
     setError("");
-    const baseUrl = String(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/$/, "");
-    window.location.assign(`${baseUrl}/auth/oauth/${provider}/start`);
+    try {
+      const clientState = createOAuthClientState();
+      window.sessionStorage.setItem(`blogverse_oauth_state_${provider}`, clientState);
+      const baseUrl = String(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/$/, "");
+      const startUrl = new URL(`${baseUrl}/auth/oauth/${provider}/start`);
+      startUrl.searchParams.set("client_state", clientState);
+      window.location.assign(startUrl.toString());
+    } catch {
+      setError("Your browser could not start a secure social sign-in session. Please refresh and try again.");
+    }
   }
 
   async function submit(event) {
