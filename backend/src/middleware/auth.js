@@ -75,8 +75,21 @@ export async function optionalAuth(req, _res, next) {
 
   try {
     const payload = verifyToken(token);
+    if (payload.purpose && payload.purpose !== "session") {
+      req.userId = null;
+      req.userRole = null;
+      return next();
+    }
+
+    const userId = Number(payload.sub);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      req.userId = null;
+      req.userRole = null;
+      return next();
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id: Number(payload.sub) },
+      where: { id: userId },
       select: { id: true, role: true, isBlocked: true, isDisabled: true, deletionScheduledFor: true }
     });
     const available = user && !user.isBlocked && !user.isDisabled && !user.deletionScheduledFor;
@@ -84,6 +97,7 @@ export async function optionalAuth(req, _res, next) {
     req.userRole = available ? user.role : null;
   } catch {
     req.userId = null;
+    req.userRole = null;
   }
 
   next();

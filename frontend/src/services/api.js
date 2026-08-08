@@ -1,8 +1,13 @@
 import axios from "axios";
 
+const configuredTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS);
+const requestTimeout = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+  ? Math.min(60000, Math.max(5000, configuredTimeout))
+  : (import.meta.env.PROD ? 45000 : 12000);
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
-  timeout: 12000
+  timeout: requestTimeout
 });
 
 api.interceptors.request.use((config) => {
@@ -21,14 +26,17 @@ api.interceptors.response.use(
 
     if (canRetry) {
       config.__retryCount = (config.__retryCount || 0) + 1;
-      await new Promise((resolve) => window.setTimeout(resolve, 650));
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
       return api(config);
     }
 
     const responseData = error.response?.data || {};
+    const backendUnavailableMessage = import.meta.env.PROD
+      ? "BlogVerse backend is temporarily unavailable. If this is the first request after inactivity, it may be starting up. Please try again."
+      : "Backend is unavailable. Make sure npm run dev is running in the backend folder.";
     const message = responseData.message
       || (error.code === "ECONNABORTED" ? "The server took too long to respond. Please retry." : "")
-      || (error.code === "ERR_NETWORK" ? "Backend is unavailable. Make sure npm run dev is running in the backend folder." : "")
+      || (error.code === "ERR_NETWORK" ? backendUnavailableMessage : "")
       || error.message
       || "Something went wrong.";
 

@@ -78,14 +78,18 @@ router.post("/post", requireAuth, (req, res, next) => {
 
     try {
       const persistentStorage = cloudinaryConfigured();
+      if (!persistentStorage && process.env.NODE_ENV === "production") {
+        return res.status(503).json({
+          success: false,
+          code: "PERSISTENT_UPLOAD_STORAGE_UNAVAILABLE",
+          message: "Persistent file uploads are temporarily unavailable. Configure Cloudinary on the production backend."
+        });
+      }
+
       const baseUrl = `${req.protocol}://${req.get("host")}`;
       const files = persistentStorage
         ? await Promise.all((req.files || []).map((file) => uploadPostFile(file)))
         : await Promise.all((req.files || []).map((file) => saveLegacyLocalFile(file, baseUrl)));
-
-      if (!persistentStorage && process.env.NODE_ENV === "production") {
-        console.warn("Cloudinary is not configured. Uploads are using Render's ephemeral filesystem and can disappear after restart/redeploy.");
-      }
 
       res.status(201).json({
         success: true,

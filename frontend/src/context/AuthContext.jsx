@@ -2,6 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import api from "../services/api";
 
 const AuthContext = createContext(null);
+const configuredApiTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS);
+const SESSION_VERIFY_TIMEOUT_MS = Number.isFinite(configuredApiTimeout) && configuredApiTimeout > 0
+  ? Math.min(65000, Math.max(10000, configuredApiTimeout + 5000))
+  : (import.meta.env.PROD ? 50000 : 15000);
 
 function readSavedUser() {
   try {
@@ -70,7 +74,7 @@ export function AuthProvider({ children }) {
         setAuthError("Login verification took too long. You can retry by reloading the page.");
         setLoading(false);
       }
-    }, 9000);
+    }, SESSION_VERIFY_TIMEOUT_MS);
 
     api.get("/auth/me", { signal: controller.signal, skipRetry: true })
       .then(({ data }) => {
