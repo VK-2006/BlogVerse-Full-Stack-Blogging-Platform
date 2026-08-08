@@ -1,0 +1,285 @@
+/* BlogVerse V23 UI polish
+   Small, low-risk overrides layered after app-redesign.css.
+   Keeps the existing visual language while fixing responsive and interaction edge cases. */
+
+/* Safer text/layout behavior for user-generated and API-driven content. */
+.form-error,
+.form-success,
+.support-user-message,
+.admin-message-body,
+.quoted-message,
+.blocked-reason,
+.footer-contact p,
+.related-url-list a,
+.attachment-download-grid a,
+.attachment-editor-item,
+.community-shared-post,
+.profile-detail-list dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Preserve readable button labels without forcing horizontal overflow. */
+.button {
+  text-align: center;
+  white-space: normal;
+}
+
+/* Safari-friendly glass surfaces. */
+.nav-shell,
+.admin-hero-summary,
+.admin-drawer > header,
+.button-glass,
+.drawer-backdrop,
+.modal-backdrop,
+.prompt-backdrop {
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Mobile navigation must remain usable on short landscape screens. */
+@media (max-width: 960px) {
+  .nav-links {
+    max-height: calc(100dvh - 92px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
+/* Article action links should look and behave exactly like action buttons. */
+.article-actions > a {
+  min-height: 48px;
+  min-width: 48px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  transition: color .2s ease, background .2s ease, border-color .2s ease, transform .2s ease;
+}
+
+.article-actions > a:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  transform: translateY(-1px);
+}
+
+/* Resource headings/cards had no explicit alignment rules. */
+.resource-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.resource-heading > svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.resource-heading > div,
+.related-url-list a > div,
+.attachment-download-grid a > div {
+  min-width: 0;
+}
+
+.related-url-list a,
+.attachment-download-grid a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.related-url-list a > svg,
+.attachment-download-grid a > svg {
+  flex: 0 0 auto;
+}
+
+.related-url-list a span,
+.attachment-download-grid a span {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* Images can add a second action button, so reserve a fourth grid column. */
+.attachment-editor-item {
+  grid-template-columns: 40px minmax(0, 1fr) auto auto;
+}
+
+.attachment-editor-item > div {
+  min-width: 0;
+}
+
+.attachment-editor-item > div strong,
+.attachment-editor-item > div span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-editor-item > button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+}
+
+.attachment-editor-item > button:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* Password recovery / OTP page polish. */
+.account-action-card .back-link + .action-icon {
+  margin-top: 20px;
+}
+
+.account-action-card input[inputmode="numeric"] {
+  min-height: 56px;
+  text-align: center;
+  font: 800 22px "Manrope", sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .3em;
+  padding-left: 44px;
+  padding-right: 18px;
+}
+
+.password-mail-success {
+  margin-top: 20px;
+  padding: 14px 16px;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--success) 28%, var(--border));
+  border-radius: 14px;
+  background: var(--success-soft);
+}
+
+.password-mail-success > svg {
+  grid-row: 1 / span 2;
+  width: 28px;
+  height: 28px;
+}
+
+.password-mail-success > strong {
+  color: var(--heading);
+}
+
+.password-mail-success > span {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Prevent long story/profile content from forcing a grid wider than the viewport. */
+.article-content,
+.community-post,
+.admin-message-card,
+.support-request-card,
+.profile-main-column {
+  min-width: 0;
+}
+
+.article-content img,
+.article-content video,
+.article-content iframe {
+  max-width: 100%;
+}
+
+.article-content pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.article-content code {
+  overflow-wrap: anywhere;
+}
+
+/* Hover elevation is useful with a mouse but can feel sticky on touch devices. */
+@media (hover: none) {
+  .interactive-surface:hover,
+  .button:hover,
+  .icon-button:hover,
+  .menu-button:hover,
+  .modal-close:hover,
+  .article-actions > a:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .account-action-page {
+    min-height: calc(100dvh - 76px);
+    padding: 44px 14px;
+    align-items: start;
+  }
+
+  .account-action-card {
+    margin-top: 8px;
+  }
+
+  .account-action-card h1 {
+    font-size: clamp(31px, 10vw, 38px);
+    line-height: 1.12;
+  }
+
+  .article-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .article-actions > button,
+  .article-actions > a {
+    flex: 1 1 48px;
+  }
+
+  .related-url-list a,
+  .attachment-download-grid a {
+    align-items: flex-start;
+  }
+
+  .attachment-editor-item {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .account-action-page {
+    padding-inline: 11px;
+  }
+
+  .account-action-card {
+    border-radius: 20px;
+  }
+
+  .account-action-card input[inputmode="numeric"] {
+    font-size: 20px;
+    letter-spacing: .22em;
+  }
+
+  .form-error,
+  .form-success {
+    align-items: flex-start;
+  }
+
+  .form-error > svg,
+  .form-success > svg {
+    flex: 0 0 auto;
+    margin-top: 2px;
+  }
+}
