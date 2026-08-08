@@ -1,0 +1,77 @@
+/* BlogVerse V27.1 — authenticated desktop navbar overflow correction.
+   The V27 visual audit found the same 1587px document width on every authenticated
+   1440px desktop route, while all public/mobile variants were clean. This file
+   constrains only the shared authenticated desktop navigation. */
+
+@media (min-width: 1081px) {
+  .authenticated-nav .nav-inner {
+    gap: 12px;
+  }
+
+  .authenticated-nav .brand {
+    flex: 0 0 auto;
+  }
+
+  .authenticated-nav .nav-links {
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 2px;
+    justify-content: center;
+  }
+
+  .authenticated-nav .nav-links a {
+    min-width: 0;
+    flex: 0 1 auto;
+    padding: 9px 7px;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+
+  .authenticated-nav .nav-actions {
+    min-width: 0;
+    flex: 0 0 auto;
+    gap: 6px;
+  }
+
+  /* Explore is already present in the primary navigation, so the icon shortcut
+     is redundant for authenticated desktop layouts and costs scarce width. */
+  .authenticated-nav .nav-search-shortcut {
+    display: none;
+  }
+
+  .authenticated-nav .nav-user-pill {
+    min-width: 0;
+    max-width: 132px;
+    padding-right: 8px;
+  }
+
+  .authenticated-nav .nav-user-copy {
+    min-width: 0;
+    max-width: 68px;
+    overflow: hidden;
+  }
+
+  .authenticated-nav .nav-user-copy strong,
+  .authenticated-nav .nav-user-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .authenticated-nav .nav-write-button {
+    flex: 0 0 auto;
+    padding-inline: 12px;
+  }
+}
+
+/* At laptop widths the existing compact menu is safer than squeezing controls. */
+@media (min-width: 1081px) and (max-width: 1240px) {
+  .authenticated-nav .nav-user-pill {
+    display: none;
+  }
+
+  .authenticated-nav .nav-links a {
+    padding-inline: 6px;
+    font-size: 12px;
+  }
+}
