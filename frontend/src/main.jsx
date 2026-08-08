@@ -8,6 +8,7 @@ import "./app-redesign.css";
 import "./ui-polish-v23.css";
 import "./ui-polish-v24.css";
 import "./ui-polish-v25.css";
+import "./ui-polish-v25-2.css";
 
 const rootElement = document.getElementById("root");
 
