@@ -49,25 +49,25 @@ function facebookVersionPrefix() {
 }
 
 function providerConfig(provider) {
-  const base = backendBaseUrl();
+  const redirectUri = new URL("/oauth/callback", `${frontendBaseUrl()}/`).toString();
 
   if (provider === "google") {
     return {
       provider: "GOOGLE",
-      configured: Boolean(base && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+      configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      redirectUri: `${base}/api/auth/oauth/google/callback`
+      redirectUri
     };
   }
 
   if (provider === "facebook") {
     return {
       provider: "FACEBOOK",
-      configured: Boolean(base && process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET),
+      configured: Boolean(process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET),
       clientId: process.env.FACEBOOK_APP_ID,
       clientSecret: process.env.FACEBOOK_APP_SECRET,
-      redirectUri: `${base}/api/auth/oauth/facebook/callback`
+      redirectUri
     };
   }
 
@@ -127,6 +127,29 @@ function verifySignedState(value, provider) {
   } catch {
     return null;
   }
+}
+
+function buildAuthorizationUrl(provider, config, state) {
+  if (provider === "google") {
+    const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    url.searchParams.set("client_id", config.clientId);
+    url.searchParams.set("redirect_uri", config.redirectUri);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("scope", "openid email profile");
+    url.searchParams.set("state", state);
+    url.searchParams.set("include_granted_scopes", "true");
+    url.searchParams.set("prompt", "select_account");
+    return url.toString();
+  }
+
+  const versionPrefix = facebookVersionPrefix();
+  const url = new URL(`https://www.facebook.com${versionPrefix}/dialog/oauth`);
+  url.searchParams.set("client_id", config.clientId);
+  url.searchParams.set("redirect_uri", config.redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", "email,public_profile");
+  url.searchParams.set("state", state);
+  return url.toString();
 }
 
 function redirectFrontend(res, params = {}) {
@@ -375,6 +398,102 @@ router.get("/providers", (_req, res) => {
   });
 });
 
+router.post("/:provider/authorization-url", (req, res) => {
+  const provider = String(req.params.provider || "").toLowerCase();
+  const config = providerConfig(provider);
+
+  if (!config) {
+    return res.status(404).json({ success: false, message: "Unknown OAuth provider." });
+  }
+  if (!config.configured) {
+    return res.status(503).json({
+      success: false,
+      code: "OAUTH_NOT_CONFIGURED",
+      message: `${provider === "google" ? "Google" : "Facebook"} sign-in is not configured yet.`
+    });
+  }
+
+  const clientState = String(req.body?.clientState || "").trim();
+  if (!OAUTH_CLIENT_STATE_PATTERN.test(clientState)) {
+    return res.status(400).json({
+      success: false,
+      code: "OAUTH_CLIENT_STATE_INVALID",
+      message: "A secure social sign-in session could not be started. Please refresh and try again."
+    });
+  }
+
+  const state = createSignedState(provider, clientState);
+  return res.json({
+    success: true,
+    provider,
+    state,
+    authorizationUrl: buildAuthorizationUrl(provider, config, state)
+  });
+});
+
+router.post("/:provider/complete", async (req, res) => {
+  const provider = String(req.params.provider || "").toLowerCase();
+  const config = providerConfig(provider);
+
+  try {
+    if (!config || !config.configured) {
+      return res.status(503).json({
+        success: false,
+        code: "OAUTH_NOT_CONFIGURED",
+        message: "This social sign-in provider is not configured."
+      });
+    }
+
+    const { code, state } = z.object({
+      code: z.string().trim().min(10).max(4096),
+      state: z.string().trim().min(20).max(4096)
+    }).parse(req.body);
+
+    const statePayload = verifySignedState(state, provider);
+    if (!statePayload) {
+      return res.status(400).json({
+        success: false,
+        code: "OAUTH_STATE_INVALID",
+        message: "The social sign-in session expired or could not be verified. Please try again."
+      });
+    }
+
+    const profile = provider === "google"
+      ? await googleProfile(code, config)
+      : await facebookProfile(code, config);
+
+    const user = await resolveOAuthUser(profile);
+
+    return res.json({
+      success: true,
+      message: `Welcome to BlogVerse, ${user.name}!`,
+      prompt: "Social sign-in completed successfully.",
+      token: signToken(user),
+      user
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        code: "OAUTH_RESPONSE_INVALID",
+        message: "The social sign-in response is incomplete or invalid."
+      });
+    }
+
+    console.error(`OAuth ${provider} completion failed:`, error.message);
+    const code = error.code === "ACCOUNT_DISABLED" ? "ACCOUNT_DISABLED" : "OAUTH_FAILED";
+    const message = error.code === "ACCOUNT_DISABLED"
+      ? error.message
+      : `${provider === "google" ? "Google" : "Facebook"} sign-in could not be completed. Please try again.`;
+
+    return res.status(error.code === "ACCOUNT_DISABLED" ? 403 : 400).json({
+      success: false,
+      code,
+      message
+    });
+  }
+});
+
 router.get("/:provider/start", (req, res) => {
   const provider = String(req.params.provider || "").toLowerCase();
   const config = providerConfig(provider);
@@ -392,27 +511,7 @@ router.get("/:provider/start", (req, res) => {
   }
 
   const state = createSignedState(provider, clientState);
-
-  if (provider === "google") {
-    const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-    url.searchParams.set("client_id", config.clientId);
-    url.searchParams.set("redirect_uri", config.redirectUri);
-    url.searchParams.set("response_type", "code");
-    url.searchParams.set("scope", "openid email profile");
-    url.searchParams.set("state", state);
-    url.searchParams.set("include_granted_scopes", "true");
-    url.searchParams.set("prompt", "select_account");
-    return res.redirect(302, url.toString());
-  }
-
-  const versionPrefix = facebookVersionPrefix();
-  const url = new URL(`https://www.facebook.com${versionPrefix}/dialog/oauth`);
-  url.searchParams.set("client_id", config.clientId);
-  url.searchParams.set("redirect_uri", config.redirectUri);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "email,public_profile");
-  url.searchParams.set("state", state);
-  return res.redirect(302, url.toString());
+  return res.redirect(302, buildAuthorizationUrl(provider, config, state));
 });
 
 router.get("/:provider/callback", async (req, res) => {

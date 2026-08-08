@@ -38,17 +38,36 @@ export default function AuthPage({ mode }) {
     setForm({ ...form, [event.target.name]: event.target.value });
   }
 
-  function startOAuth(provider) {
+  async function startOAuth(provider) {
     setError("");
+    setBusy(true);
+
     try {
       const clientState = createOAuthClientState();
-      window.sessionStorage.setItem(`blogverse_oauth_state_${provider}`, clientState);
-      const baseUrl = String(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/$/, "");
-      const startUrl = new URL(`${baseUrl}/auth/oauth/${provider}/start`);
-      startUrl.searchParams.set("client_state", clientState);
-      window.location.assign(startUrl.toString());
-    } catch {
-      setError("Your browser could not start a secure social sign-in session. Please refresh and try again.");
+      const { data } = await api.post(
+        `/auth/oauth/${provider}/authorization-url`,
+        { clientState },
+        { timeout: 15000, skipRetry: true }
+      );
+
+      const authorizationUrl = new URL(String(data.authorizationUrl || ""));
+      const expectedHost = provider === "google" ? "accounts.google.com" : "www.facebook.com";
+      if (authorizationUrl.protocol !== "https:" || authorizationUrl.hostname !== expectedHost || !data.state) {
+        throw new Error("The social sign-in provider returned an invalid authorization URL.");
+      }
+
+      window.sessionStorage.setItem("blogverse_oauth_pending", JSON.stringify({
+        provider,
+        state: String(data.state),
+        clientState,
+        createdAt: Date.now()
+      }));
+
+      window.location.assign(authorizationUrl.toString());
+    } catch (requestError) {
+      window.sessionStorage.removeItem("blogverse_oauth_pending");
+      setBusy(false);
+      setError(requestError.message || "Your browser could not start a secure social sign-in session. Please refresh and try again.");
     }
   }
 
@@ -122,8 +141,8 @@ export default function AuthPage({ mode }) {
           {(oauthProviders.google || oauthProviders.facebook) && (
             <>
               <div className="oauth-options">
-                {oauthProviders.google && <button type="button" className="oauth-button google" onClick={() => startOAuth("google")}><span className="oauth-brand-mark">G</span><span>Continue with Google</span><span>→</span></button>}
-                {oauthProviders.facebook && <button type="button" className="oauth-button facebook" onClick={() => startOAuth("facebook")}><span className="oauth-brand-mark">f</span><span>Continue with Facebook</span><span>→</span></button>}
+                {oauthProviders.google && <button type="button" className="oauth-button google" onClick={() => startOAuth("google")} disabled={busy}><span className="oauth-brand-mark">G</span><span>Continue with Google</span><span>→</span></button>}
+                {oauthProviders.facebook && <button type="button" className="oauth-button facebook" onClick={() => startOAuth("facebook")} disabled={busy}><span className="oauth-brand-mark">f</span><span>Continue with Facebook</span><span>→</span></button>}
               </div>
               <div className="auth-divider"><span>or continue with email</span></div>
             </>

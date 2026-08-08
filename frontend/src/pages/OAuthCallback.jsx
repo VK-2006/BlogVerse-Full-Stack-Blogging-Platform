@@ -4,6 +4,20 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 
+const OAUTH_PENDING_KEY = "blogverse_oauth_pending";
+const OAUTH_BROWSER_TTL_MS = 10 * 60 * 1000;
+
+function readPendingOAuth() {
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(OAUTH_PENDING_KEY) || "null");
+    if (!value || !["google", "facebook"].includes(value.provider) || !value.state) return null;
+    if (!Number.isFinite(Number(value.createdAt)) || Date.now() - Number(value.createdAt) > OAUTH_BROWSER_TTL_MS) return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
 export default function OAuthCallback() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -17,38 +31,49 @@ export default function OAuthCallback() {
     handled.current = true;
 
     const providerError = params.get("error");
-    const providerMessage = params.get("message");
+    const providerMessage = params.get("error_description") || params.get("message");
     const code = params.get("code");
-    const provider = params.get("provider");
     const returnedState = params.get("state");
-    const storageKey = provider ? `blogverse_oauth_state_${provider}` : "";
-    const expectedState = storageKey ? window.sessionStorage.getItem(storageKey) : "";
+    const pending = readPendingOAuth();
 
     window.history.replaceState({}, document.title, "/oauth/callback");
 
-    if (providerError) {
-      setError(providerMessage || "Social sign-in could not be completed.");
+    if (!pending) {
+      window.sessionStorage.removeItem(OAUTH_PENDING_KEY);
+      setError("This social sign-in session is missing or expired. Please start again from the login page.");
       setStatus("");
       return;
     }
 
-    if (!code || !provider || !["google", "facebook"].includes(provider)) {
-      setError("The social sign-in response is incomplete. Please try again.");
-      setStatus("");
-      return;
-    }
-
-    if (!returnedState || !expectedState || returnedState !== expectedState) {
-      if (storageKey) window.sessionStorage.removeItem(storageKey);
+    if (!returnedState || returnedState !== pending.state) {
+      window.sessionStorage.removeItem(OAUTH_PENDING_KEY);
       setError("The social sign-in session could not be verified in this browser. Please try again from the login page.");
       setStatus("");
       return;
     }
 
-    window.sessionStorage.removeItem(storageKey);
+    if (providerError) {
+      window.sessionStorage.removeItem(OAUTH_PENDING_KEY);
+      setError(providerMessage || "Social sign-in was cancelled or permission was not granted.");
+      setStatus("");
+      return;
+    }
+
+    if (!code) {
+      window.sessionStorage.removeItem(OAUTH_PENDING_KEY);
+      setError("The social sign-in response is incomplete. Please try again.");
+      setStatus("");
+      return;
+    }
+
+    window.sessionStorage.removeItem(OAUTH_PENDING_KEY);
     let active = true;
 
-    api.post("/auth/oauth/exchange", { code }, { timeout: 15000, skipRetry: true })
+    api.post(
+      `/auth/oauth/${pending.provider}/complete`,
+      { code, state: returnedState },
+      { timeout: 20000, skipRetry: true }
+    )
       .then(({ data }) => {
         if (!active) return;
         completeOAuth(data);
