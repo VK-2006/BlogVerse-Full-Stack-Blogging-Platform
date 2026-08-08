@@ -25,6 +25,9 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const WritePost = lazy(() => import("./pages/WritePost"));
 const Bookmarks = lazy(() => import("./pages/Bookmarks"));
 const AccountSettings = lazy(() => import("./pages/AccountSettings"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const DataDeletion = lazy(() => import("./pages/DataDeletion"));
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 
 function AppRoutes() {
@@ -49,6 +52,9 @@ function AppRoutes() {
         <Route path="/write/:id" element={<ProtectedRoute><WritePost /></ProtectedRoute>} />
         <Route path="/bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
         <Route path="/settings/account" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/data-deletion" element={<DataDeletion />} />
         <Route path="/admin" element={<ProtectedRoute roles={["ADMIN"]}><AdminUsers /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute roles={["ADMIN"]}><AdminUsers /></ProtectedRoute>} />
         <Route path="*" element={
@@ -93,6 +99,9 @@ function AppFooter() {
           <Link to="/login">Sign in</Link>
           <Link to="/register">Create account</Link>
           <Link to="/forgot-password">Forgot password</Link>
+          <Link to="/privacy">Privacy Policy</Link>
+          <Link to="/terms">Terms of Service</Link>
+          <Link to="/data-deletion">Data Deletion</Link>
         </div>
         <div className="footer-contact">
           <h4>Stay connected</h4>

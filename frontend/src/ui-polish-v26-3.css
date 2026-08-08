@@ -1,0 +1,42 @@
+.legal-page { padding-bottom: 20px; }
+.legal-hero {
+  padding: 92px 0 56px;
+  background:
+    radial-gradient(circle at 12% 12%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 36%),
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--cyan) 16%, transparent), transparent 34%);
+  border-bottom: 1px solid var(--border);
+}
+.legal-hero-inner { text-align: center; }
+.legal-hero h1 { margin-top: 16px; font-size: clamp(36px, 6vw, 62px); line-height: 1.03; }
+.legal-hero p { max-width: 720px; margin: 18px auto 0; font-size: 18px; }
+.legal-meta {
+  display: inline-flex; margin-top: 18px; padding: 8px 12px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-3); font-size: 13px; font-weight: 700;
+}
+.legal-stack { display: grid; gap: 18px; }
+.legal-card { padding: clamp(24px, 4vw, 38px); }
+.legal-card h2 { font-size: clamp(22px, 3vw, 30px); margin-bottom: 14px; }
+.legal-card p + p { margin-top: 14px; }
+.legal-card ul, .legal-card ol { margin: 16px 0 0; padding-left: 22px; color: var(--text-2); line-height: 1.75; }
+.legal-card li + li { margin-top: 8px; }
+.legal-card strong { color: var(--heading); }
+.legal-summary {
+  display: flex; align-items: flex-start; gap: 18px;
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
+  background: linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--primary-soft) 72%, var(--surface)));
+}
+.legal-summary > svg { width: 34px; height: 34px; flex: 0 0 auto; color: var(--primary); }
+.legal-summary h2 { margin-bottom: 6px; }
+.legal-inline-link { display: inline-flex; margin-top: 10px; color: var(--primary-2); font-weight: 800; }
+.legal-card .button { margin-top: 18px; }
+.legal-steps { counter-reset: legal-step; list-style: none; padding-left: 0 !important; }
+.legal-steps li { counter-increment: legal-step; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+.legal-steps li::before {
+  content: counter(legal-step); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--primary-soft); color: var(--primary-2); border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border)); font-weight: 800;
+}
+@media (max-width: 640px) {
+  .legal-hero { padding-top: 72px; }
+  .legal-summary { display: block; }
+  .legal-summary > svg { margin-bottom: 14px; }
+}
