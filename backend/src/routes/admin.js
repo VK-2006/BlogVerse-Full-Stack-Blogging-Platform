@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "../utils/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { emailDeliveryConfigured, sendContactReplyEmail } from "../utils/mailer.js";
+import { storyHtmlToPlainText } from "../utils/postDownload.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("ADMIN"));
@@ -218,6 +219,8 @@ router.get("/users/:id/posts", async (req, res, next) => {
           blockedByAdminId: true,
           viewCount: true,
           readTime: true,
+          downloadEnabled: true,
+          downloadCount: true,
           publishedAt: true,
           createdAt: true,
           updatedAt: true,
@@ -379,6 +382,8 @@ router.get("/posts", async (req, res, next) => {
           blockedByAdminId: true,
           viewCount: true,
           readTime: true,
+          downloadEnabled: true,
+          downloadCount: true,
           publishedAt: true,
           createdAt: true,
           updatedAt: true,
@@ -394,6 +399,56 @@ router.get("/posts", async (req, res, next) => {
       success: true,
       posts,
       pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/posts/:id", async (req, res, next) => {
+  try {
+    const postId = Number(req.params.id);
+    if (!Number.isInteger(postId) || postId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid post id." });
+    }
+
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        excerpt: true,
+        content: true,
+        coverImage: true,
+        status: true,
+        isBlocked: true,
+        blockedAt: true,
+        blockedReason: true,
+        blockedByAdminId: true,
+        viewCount: true,
+        readTime: true,
+        downloadEnabled: true,
+        downloadCount: true,
+        publishedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        author: { select: { id: true, name: true, email: true, avatar: true, bio: true } },
+        category: { select: { id: true, name: true, slug: true } },
+        tags: { include: { tag: true } },
+        attachments: true,
+        links: true,
+        _count: { select: { comments: true, likes: true, bookmarks: true, communityShares: true } }
+      }
+    });
+
+    if (!post) return res.status(404).json({ success: false, message: "Post not found." });
+    const contentText = storyHtmlToPlainText(post.content);
+    const wordCount = contentText ? contentText.split(/\\s+/).filter(Boolean).length : 0;
+
+    res.json({
+      success: true,
+      post: { ...post, content: undefined, contentText, wordCount }
     });
   } catch (error) {
     next(error);
@@ -503,6 +558,7 @@ router.get("/contact-messages", async (req, res, next) => {
           closedAt: true,
           createdAt: true,
           updatedAt: true,
+          threadEntries: { orderBy: { createdAt: "asc" }, select: { id: true, actor: true, senderUserId: true, senderName: true, message: true, createdAt: true } },
           user: { select: { id: true, name: true, email: true, avatar: true } },
           repliedByAdmin: { select: { id: true, name: true } }
         }
@@ -532,20 +588,57 @@ router.patch("/contact-messages/:id/reply", async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Invalid support message id." });
     }
 
-    const existing = await prisma.contactMessage.findUnique({ where: { id: messageId } });
+    const existing = await prisma.contactMessage.findUnique({
+      where: { id: messageId },
+      include: {
+        threadEntries: { select: { id: true, actor: true } },
+        repliedByAdmin: { select: { id: true, name: true } }
+      }
+    });
     if (!existing) {
       return res.status(404).json({ success: false, message: "Support message not found." });
     }
 
-    const updated = await prisma.contactMessage.update({
+    const now = new Date();
+    await prisma.$transaction(async (transaction) => {
+      if (existing.adminReply && !existing.threadEntries.some((entry) => entry.actor === "ADMIN")) {
+        await transaction.contactThreadEntry.create({
+          data: {
+            contactMessageId: existing.id,
+            actor: "ADMIN",
+            senderUserId: existing.repliedByAdminId || null,
+            senderName: existing.repliedByAdmin?.name || "BlogVerse Administrator",
+            message: existing.adminReply,
+            createdAt: existing.repliedAt || existing.updatedAt || now
+          }
+        });
+      }
+
+      await transaction.contactThreadEntry.create({
+        data: {
+          contactMessageId: existing.id,
+          actor: "ADMIN",
+          senderUserId: req.user.id,
+          senderName: req.user.name,
+          message: data.reply,
+          createdAt: now
+        }
+      });
+
+      await transaction.contactMessage.update({
+        where: { id: messageId },
+        data: {
+          adminReply: data.reply,
+          repliedAt: now,
+          repliedByAdminId: req.user.id,
+          status: data.close ? "CLOSED" : "REPLIED",
+          closedAt: data.close ? now : null
+        }
+      });
+    });
+
+    const updated = await prisma.contactMessage.findUnique({
       where: { id: messageId },
-      data: {
-        adminReply: data.reply,
-        repliedAt: new Date(),
-        repliedByAdminId: req.user.id,
-        status: data.close ? "CLOSED" : "REPLIED",
-        closedAt: data.close ? new Date() : null
-      },
       select: {
         id: true,
         ticketCode: true,
@@ -558,6 +651,8 @@ router.patch("/contact-messages/:id/reply", async (req, res, next) => {
         repliedAt: true,
         closedAt: true,
         createdAt: true,
+        updatedAt: true,
+        threadEntries: { orderBy: { createdAt: "asc" }, select: { id: true, actor: true, senderUserId: true, senderName: true, message: true, createdAt: true } },
         repliedByAdmin: { select: { id: true, name: true } }
       }
     });
@@ -569,7 +664,7 @@ router.patch("/contact-messages/:id/reply", async (req, res, next) => {
         name: updated.name,
         ticketCode: updated.ticketCode || `BV-LEGACY-${updated.id}`,
         subject: updated.subject,
-        reply: updated.adminReply
+        reply: data.reply
       })
         .then((emailResult) => {
           if (!emailResult?.sent) console.error("Contact reply email was not sent:", emailResult?.reason || "UNKNOWN");
@@ -580,8 +675,8 @@ router.patch("/contact-messages/:id/reply", async (req, res, next) => {
     res.json({
       success: true,
       message: emailQueued
-        ? `Reply saved in BlogVerse and email queued for ${updated.email}.`
-        : "Reply saved in BlogVerse. Configure Brevo email delivery to also send it by email.",
+        ? `Response added to the support conversation and email queued for ${updated.email}.`
+        : "Response added to the support conversation. Configure Brevo email delivery to also send it by email.",
       emailQueued,
       emailSent: false,
       contactMessage: updated

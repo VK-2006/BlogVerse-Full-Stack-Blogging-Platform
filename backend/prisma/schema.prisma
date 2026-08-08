@@ -33,6 +33,11 @@ enum ContactStatus {
   CLOSED
 }
 
+enum SupportActor {
+  USER
+  ADMIN
+}
+
 model User {
   id               Int              @id @default(autoincrement())
   name             String
@@ -104,6 +109,8 @@ model Post {
   blockedByAdminId  Int?
   viewCount         Int             @default(0)
   readTime          Int             @default(1)
+  downloadEnabled   Boolean         @default(true)
+  downloadCount     Int             @default(0)
   publishedAt       DateTime?
   authorId          Int
   categoryId        Int?
@@ -206,6 +213,7 @@ model ContactMessage {
   closedAt         DateTime?
   user             User?         @relation("ContactSender", fields: [userId], references: [id], onDelete: SetNull)
   repliedByAdmin   User?         @relation("ContactResponder", fields: [repliedByAdminId], references: [id], onDelete: SetNull)
+  threadEntries     ContactThreadEntry[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt @default(now())
 
@@ -213,6 +221,19 @@ model ContactMessage {
   @@index([createdAt])
   @@index([userId])
   @@index([repliedByAdminId])
+}
+
+model ContactThreadEntry {
+  id               Int          @id @default(autoincrement())
+  contactMessageId Int
+  actor            SupportActor
+  senderUserId     Int?
+  senderName       String       @db.VarChar(100)
+  message          String       @db.Text
+  contactMessage   ContactMessage @relation(fields: [contactMessageId], references: [id], onDelete: Cascade)
+  createdAt        DateTime     @default(now())
+
+  @@index([contactMessageId, createdAt])
 }
 
 model PostAttachment {

@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, FileText, Image, Link2, LoaderCircle, Save, Send, UploadCloud, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Download, ExternalLink, FileText, Image, Link2, LoaderCircle, Save, Send, UploadCloud, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
@@ -17,7 +17,7 @@ export default function WritePost() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [categories,setCategories]=useState([]);
-  const [form,setForm]=useState({title:"",excerpt:"",coverImage:"",content:"",categoryId:"",tags:"",relatedLinks:""});
+  const [form,setForm]=useState({title:"",excerpt:"",coverImage:"",content:"",categoryId:"",tags:"",relatedLinks:"",downloadEnabled:true});
   const [attachments,setAttachments]=useState([]);
   const [error,setError]=useState(""); const [success,setSuccess]=useState(""); const [busy,setBusy]=useState(false);
   const [uploading,setUploading]=useState(false); const [uploadProgress,setUploadProgress]=useState(0); const [dragActive,setDragActive]=useState(false); const [loadingPost,setLoadingPost]=useState(isEditing);
@@ -29,7 +29,7 @@ export default function WritePost() {
     setLoadingPost(true);
     api.get(`/posts/manage/${id}`).then(({data})=>{
       const post=data.post;
-      setForm({ title:post.title, excerpt:post.excerpt||"", coverImage:post.coverImage||"", content:htmlToText(post.content), categoryId:post.category?.id ? String(post.category.id) : "", tags:(post.tags||[]).map((item)=>item.tag.name).join(", "), relatedLinks:linksToText(post.links) });
+      setForm({ title:post.title, excerpt:post.excerpt||"", coverImage:post.coverImage||"", content:htmlToText(post.content), categoryId:post.category?.id ? String(post.category.id) : "", tags:(post.tags||[]).map((item)=>item.tag.name).join(", "), relatedLinks:linksToText(post.links), downloadEnabled:Boolean(post.downloadEnabled) });
       setAttachments(post.attachments||[]);
       setModeration({blocked:Boolean(post.isBlocked),reason:post.blockedReason||""});
     }).catch((e)=>setError(e.message)).finally(()=>setLoadingPost(false));
@@ -53,7 +53,7 @@ export default function WritePost() {
   async function save(status){
     const validationMessage=validate(status);if(validationMessage)return setError(validationMessage);
     setError("");setSuccess("");setBusy(true);
-    try{const payload={title:form.title.trim(),excerpt:form.excerpt.trim(),coverImage:form.coverImage.trim(),status,categoryId:form.categoryId?Number(form.categoryId):null,tags:form.tags.split(",").map((tag)=>tag.trim()).filter(Boolean),content:textToHtml(form.content),attachments,links:parseLinks(form.relatedLinks)};const {data}=isEditing?await api.put(`/posts/${id}`,payload):await api.post("/posts",payload);if(status==="PUBLISHED")navigate(`/post/${data.post.slug}`);else if(!isEditing)navigate(`/write/${data.post.id}`,{replace:true});else setSuccess("Draft updated successfully. You can continue editing or publish it now.");}
+    try{const payload={title:form.title.trim(),excerpt:form.excerpt.trim(),coverImage:form.coverImage.trim(),status,categoryId:form.categoryId?Number(form.categoryId):null,tags:form.tags.split(",").map((tag)=>tag.trim()).filter(Boolean),content:textToHtml(form.content),downloadEnabled:Boolean(form.downloadEnabled),attachments,links:parseLinks(form.relatedLinks)};const {data}=isEditing?await api.put(`/posts/${id}`,payload):await api.post("/posts",payload);if(status==="PUBLISHED")navigate(`/post/${data.post.slug}`);else if(!isEditing)navigate(`/write/${data.post.id}`,{replace:true});else setSuccess("Draft updated successfully. You can continue editing or publish it now.");}
     catch(e){setError(e.message);}finally{setBusy(false);}
   }
 
@@ -72,7 +72,7 @@ export default function WritePost() {
         <section className="setting-group"><div className="setting-title"><UploadCloud size={18}/><span>Upload from laptop</span></div><input ref={fileInputRef} className="sr-only" type="file" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip" onChange={(event)=>uploadFiles(event.target.files)}/><button type="button" className={`file-drop-zone ${dragActive?"drag-active":""}`} onClick={()=>fileInputRef.current?.click()} onDragEnter={(e)=>{e.preventDefault();setDragActive(true);}} onDragOver={(e)=>e.preventDefault()} onDragLeave={(e)=>{e.preventDefault();setDragActive(false);}} onDrop={(e)=>{e.preventDefault();setDragActive(false);uploadFiles(e.dataTransfer.files);}} disabled={uploading}>{uploading?<LoaderCircle className="spin"/>:<UploadCloud/>}<strong>{uploading?`Uploading ${uploadProgress}%`:"Choose or drop files"}</strong><span>Images, PDF, Word, PPT, Excel, text or ZIP · 10 MB each</span>{uploading&&<i style={{width:`${uploadProgress}%`}}/>}</button>
           {attachments.length>0&&<div className="attachment-editor-list">{attachments.map((file)=><div className="attachment-editor-item" key={file.storedName}><span className="attachment-file-icon">{file.mimeType.startsWith("image/")?<Image size={17}/>:<FileText size={17}/>}</span><div><strong>{file.originalName}</strong><span>{formatBytes(file.size)}</span></div>{file.mimeType.startsWith("image/")&&<button type="button" onClick={()=>setForm((current)=>({...current,coverImage:file.url}))} title="Use as cover"><Image size={15}/></button>}<button type="button" onClick={()=>setAttachments((current)=>current.filter((item)=>item.storedName!==file.storedName))} title="Remove"><X size={15}/></button></div>)}</div>}
         </section>
-        <label>Cover image URL<div className="input-with-trailing-icon"><input name="coverImage" value={form.coverImage} onChange={update} placeholder="https://..."/><ExternalLink size={16}/></div></label>
+        <label className="download-setting-card"><input type="checkbox" checked={Boolean(form.downloadEnabled)} onChange={(event)=>setForm((current)=>({...current,downloadEnabled:event.target.checked}))}/><span><strong><Download size={17}/> Reader downloads</strong><small>When enabled, readers can download this story as a styled HTML file. You and administrators can always download your own story even when this is off.</small></span></label><label>Cover image URL<div className="input-with-trailing-icon"><input name="coverImage" value={form.coverImage} onChange={update} placeholder="https://..."/><ExternalLink size={16}/></div></label>
         <label>Category<select name="categoryId" value={form.categoryId} onChange={update}><option value="">Select category</option>{categories.map((item)=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label>Tags<input name="tags" value={form.tags} onChange={update} placeholder="react, nodejs, career"/><small>Separate tags with commas.</small></label>
         <label><span className="setting-title"><Link2 size={17}/> Related URLs</span><textarea className="related-links-input" name="relatedLinks" value={form.relatedLinks} onChange={update} placeholder={"React docs | https://react.dev\nhttps://example.com"}/><small>One URL per line. Optional label before |.</small></label>

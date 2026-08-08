@@ -3,6 +3,7 @@ import slugify from "slugify";
 import { z } from "zod";
 import prisma from "../utils/prisma.js";
 import { removeStoredPostFiles } from "../utils/fileStorage.js";
+import { buildPostDownloadHtml } from "../utils/postDownload.js";
 import { optionalAuth, requireAuth } from "../middleware/auth.js";
 
 const router = Router();
@@ -29,6 +30,8 @@ const postSelect = {
   blockedByAdminId: true,
   viewCount: true,
   readTime: true,
+  downloadEnabled: true,
+  downloadCount: true,
   publishedAt: true,
   createdAt: true,
   updatedAt: true,
@@ -59,6 +62,7 @@ const postSchema = z.object({
   content: z.string().trim().default(""),
   coverImage: z.string().url("Cover image must be a complete URL.").refine(isHttpUrl, "Cover image must use http:// or https://.").optional().or(z.literal("")),
   status: z.enum(["DRAFT", "PUBLISHED"]).default("DRAFT"),
+  downloadEnabled: z.boolean().optional(),
   categoryId: z.coerce.number().int().positive().optional().nullable(),
   tags: z.array(z.string().trim().min(1).max(30)).max(8).default([]),
   attachments: z.array(attachmentSchema).max(10).default([]),
@@ -183,6 +187,40 @@ router.get("/manage/:id", requireAuth, async (req, res, next) => {
   }
 });
 
+router.get("/:id/download", optionalAuth, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid post id." });
+    }
+
+    const post = await prisma.post.findUnique({ where: { id }, select: postSelect });
+    if (!post) return res.status(404).json({ success: false, message: "Post not found." });
+
+    const isOwner = post.author.id === req.userId;
+    const isAdmin = req.userRole === "ADMIN";
+    const publiclyVisible = post.status === "PUBLISHED" && !post.isBlocked;
+
+    if (!publiclyVisible && !isOwner && !isAdmin) {
+      return res.status(404).json({ success: false, message: "Post not found or unavailable." });
+    }
+    if (!post.downloadEnabled && !isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, code: "DOWNLOAD_DISABLED", message: "The author has disabled downloads for this story." });
+    }
+
+    const html = buildPostDownloadHtml(post);
+    await prisma.post.update({ where: { id: post.id }, data: { downloadCount: { increment: 1 } } });
+
+    const filename = `${post.slug || `blogverse-post-${post.id}`}.html`;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.send(html);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/:slug", optionalAuth, async (req, res, next) => {
   try {
     const post = await prisma.post.findUnique({ where: { slug: req.params.slug }, select: postSelect });
@@ -209,7 +247,8 @@ router.get("/:slug", optionalAuth, async (req, res, next) => {
       bookmarked = Boolean(bookmark);
     }
 
-    res.json({ success: true, post, liked, bookmarked });
+    const canDownload = Boolean(post.downloadEnabled || isOwner || isAdmin);
+    res.json({ success: true, post, liked, bookmarked, canDownload });
   } catch (error) {
     next(error);
   }
@@ -231,6 +270,7 @@ router.post("/", requireAuth, async (req, res, next) => {
         status: data.status,
         publishedAt: data.status === "PUBLISHED" ? new Date() : null,
         readTime: calculateReadTime(data.content),
+        downloadEnabled: data.downloadEnabled ?? true,
         authorId: req.user.id,
         categoryId: data.categoryId || null,
         attachments: { create: data.attachments },
@@ -294,6 +334,7 @@ router.put("/:id", requireAuth, async (req, res, next) => {
           status: data.status,
           publishedAt: data.status === "PUBLISHED" ? existing.publishedAt || new Date() : null,
           readTime: calculateReadTime(data.content),
+          downloadEnabled: data.downloadEnabled ?? existing.downloadEnabled,
           attachments: { create: data.attachments },
           links: { create: data.links.map((link) => ({ label: link.label || null, url: link.url })) },
           tags: {

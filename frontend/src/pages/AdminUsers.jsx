@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Download,
   ExternalLink,
   FileText,
   Heart,
@@ -23,7 +24,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import AdminPostDetailsModal from "../components/AdminPostDetailsModal";
+import SupportThread from "../components/SupportThread";
 import api from "../services/api";
+import { downloadPostFile } from "../utils/downloadPost";
 
 const emptyOverview = {
   totalUsers: 0,
@@ -95,6 +99,9 @@ export default function AdminUsers() {
   const [creatorPosts, setCreatorPosts] = useState([]);
   const [creatorSummary, setCreatorSummary] = useState({ totalPosts: 0, publishedPosts: 0, draftPosts: 0, blockedPosts: 0 });
   const [creatorLoading, setCreatorLoading] = useState(false);
+  const [postDetails, setPostDetails] = useState(null);
+  const [postDetailsLoading, setPostDetailsLoading] = useState(false);
+  const [downloadingPostId, setDownloadingPostId] = useState(null);
 
   const loadOverview = useCallback(async () => {
     const { data } = await api.get("/admin/overview");
@@ -143,10 +150,10 @@ export default function AdminUsers() {
   useEffect(() => { loadTab(); }, [loadTab]);
 
   useEffect(() => {
-    const locked = Boolean(action || replyTarget || creatorDrawer);
+    const locked = Boolean(action || replyTarget || creatorDrawer || postDetails);
     document.body.classList.toggle("modal-open", locked);
     return () => document.body.classList.remove("modal-open");
-  }, [action, replyTarget, creatorDrawer]);
+  }, [action, replyTarget, creatorDrawer, postDetails]);
 
   async function loadCreatorPosts(account) {
     setCreatorDrawer(account);
@@ -159,6 +166,38 @@ export default function AdminUsers() {
       setError(requestError.message);
     } finally {
       setCreatorLoading(false);
+    }
+  }
+
+  async function loadPostDetails(post) {
+    setPostDetails(post);
+    setPostDetailsLoading(true);
+    setError("");
+    try {
+      const { data } = await api.get(`/admin/posts/${post.id}`);
+      setPostDetails(data.post);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setPostDetailsLoading(false);
+    }
+  }
+
+  async function downloadPost(post) {
+    if (!post || downloadingPostId) return;
+    setDownloadingPostId(post.id);
+    setError("");
+    try {
+      await downloadPostFile(post);
+      setNotice(`“${post.title}” downloaded successfully.`);
+      const increment = (item) => item.id === post.id ? { ...item, downloadCount: (item.downloadCount || 0) + 1 } : item;
+      setPosts((current) => current.map(increment));
+      setCreatorPosts((current) => current.map(increment));
+      setPostDetails((current) => current?.id === post.id ? { ...current, downloadCount: (current.downloadCount || 0) + 1 } : current);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setDownloadingPostId(null);
     }
   }
 
@@ -296,7 +335,7 @@ export default function AdminUsers() {
                   <select value={postStatus} onChange={(e) => { setPostStatus(e.target.value); setPostPage(1); }}><option value="ALL">All statuses</option><option value="PUBLISHED">Published</option><option value="DRAFT">Drafts</option><option value="ARCHIVED">Archived</option></select>
                   <select value={postModeration} onChange={(e) => { setPostModeration(e.target.value); setPostPage(1); }}><option value="ALL">All moderation</option><option value="VISIBLE">Visible</option><option value="BLOCKED">Blocked</option></select>
                 </AdminToolbar>
-                {loading ? <div className="page-loader compact-loader">Loading posts...</div> : <PostModerationGrid posts={posts} onAction={(post) => { setAction({ type: "post", item: post }); setReason(post.blockedReason || ""); }} />}
+                {loading ? <div className="page-loader compact-loader">Loading posts...</div> : <PostModerationGrid posts={posts} onAction={(post) => { setAction({ type: "post", item: post }); setReason(post.blockedReason || ""); }} onDetails={loadPostDetails} onDownload={downloadPost} downloadingPostId={downloadingPostId} />}
                 <Pagination pagination={postPagination} onPage={setPostPage} />
               </div>
             )}
@@ -311,10 +350,9 @@ export default function AdminUsers() {
                     {messages.map((item) => (
                       <article className="admin-message-card" key={item.id}>
                         <div className="admin-message-head"><div><span className="ticket-code">{item.ticketCode || `BV-LEGACY-${item.id}`}</span><h3>{item.subject}</h3><p>{item.name} · {item.email}</p></div><span className={`support-status status-${item.status.toLowerCase()}`}>{item.status.replaceAll("_", " ")}</span></div>
-                        <p className="admin-message-body">{item.message}</p>
-                        <div className="support-time-row"><span>Received {formatDate(item.createdAt)}</span>{item.repliedAt && <span>Replied {formatDate(item.repliedAt)}</span>}</div>
-                        {item.adminReply && <div className="admin-reply-box"><strong>Current administrator reply</strong><p>{item.adminReply}</p></div>}
-                        <div className="admin-card-actions"><button className="button button-primary" onClick={() => { setReplyTarget(item); setReplyText(item.adminReply || ""); setCloseAfterReply(item.status === "CLOSED"); }}><Send size={16} /> {item.adminReply ? "Update reply" : "Reply"}</button>{item.status === "NEW" && <button className="button button-ghost" onClick={() => updateMessageStatus(item, "IN_PROGRESS")}><Clock3 size={16} /> Mark in progress</button>}{item.status !== "CLOSED" && <button className="button button-ghost" onClick={() => updateMessageStatus(item, "CLOSED")}><CheckCircle2 size={16} /> Close</button>}</div>
+                        <SupportThread ticket={item} audience="admin" compact />
+                        <div className="support-time-row"><span>Received {formatDate(item.createdAt)}</span>{item.repliedAt && <span>Latest admin response {formatDate(item.repliedAt)}</span>}</div>
+                        <div className="admin-card-actions"><button className="button button-primary" onClick={() => { setReplyTarget(item); setReplyText(""); setCloseAfterReply(item.status === "CLOSED"); }}><Send size={16} /> {item.threadEntries?.length || item.adminReply ? "Add response" : "Reply"}</button>{item.status === "NEW" && <button className="button button-ghost" onClick={() => updateMessageStatus(item, "IN_PROGRESS")}><Clock3 size={16} /> Mark in progress</button>}{item.status !== "CLOSED" && <button className="button button-ghost" onClick={() => updateMessageStatus(item, "CLOSED")}><CheckCircle2 size={16} /> Close</button>}</div>
                       </article>
                     ))}
                     {!messages.length && <div className="empty-state"><Inbox /><h3>No support messages</h3><p>No tickets match the selected filter.</p></div>}
@@ -332,7 +370,7 @@ export default function AdminUsers() {
           <aside className="admin-drawer" onClick={(event) => event.stopPropagation()}>
             <header><div><span className="overline">Creator post review</span><h2>{creatorDrawer.name}</h2><p>{creatorDrawer.email}</p></div><button className="icon-button" onClick={() => setCreatorDrawer(null)}><X /></button></header>
             <div className="admin-drawer-stats"><div><strong>{creatorSummary.totalPosts}</strong><span>Total</span></div><div><strong>{creatorSummary.publishedPosts}</strong><span>Published</span></div><div><strong>{creatorSummary.draftPosts}</strong><span>Drafts</span></div><div><strong>{creatorSummary.blockedPosts}</strong><span>Blocked</span></div></div>
-            {creatorLoading ? <div className="page-loader compact-loader">Loading creator posts...</div> : <PostModerationGrid compact posts={creatorPosts} onAction={(post) => { setAction({ type: "post", item: { ...post, author: creatorDrawer } }); setReason(post.blockedReason || ""); }} />}
+            {creatorLoading ? <div className="page-loader compact-loader">Loading creator posts...</div> : <PostModerationGrid compact posts={creatorPosts} onAction={(post) => { setAction({ type: "post", item: { ...post, author: creatorDrawer } }); setReason(post.blockedReason || ""); }} onDetails={loadPostDetails} onDownload={downloadPost} downloadingPostId={downloadingPostId} />}
           </aside>
         </div>
       )}
@@ -351,6 +389,8 @@ export default function AdminUsers() {
         </div>
       )}
 
+      {postDetails && <AdminPostDetailsModal post={postDetails} loading={postDetailsLoading} onClose={() => setPostDetails(null)} onDownload={downloadPost} downloading={downloadingPostId === postDetails.id} />}
+
       {replyTarget && (
         <div className="modal-backdrop">
           <section className="modal-card support-reply-modal" role="dialog" aria-modal="true">
@@ -358,7 +398,7 @@ export default function AdminUsers() {
             <span className="modal-icon"><Mail /></span>
             <span className="overline">Reply to {replyTarget.ticketCode || `BV-LEGACY-${replyTarget.id}`}</span>
             <h2>{replyTarget.subject}</h2>
-            <p className="quoted-message">{replyTarget.message}</p>
+            <SupportThread ticket={replyTarget} audience="admin" compact />
             <label>Administrator response<textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Write a clear and helpful response..." /></label>
             <label className="checkbox-row"><input type="checkbox" checked={closeAfterReply} onChange={(e) => setCloseAfterReply(e.target.checked)} /> Close this ticket after replying</label>
             <div className="modal-actions"><button className="button button-ghost" onClick={() => setReplyTarget(null)}>Cancel</button><button className="button button-primary" onClick={sendReply} disabled={busy || replyText.trim().length < 2}>{busy ? "Sending..." : "Send reply"} <Send size={16} /></button></div>
@@ -381,14 +421,14 @@ function AdminToolbar({ title, description, value, setValue, onSearch, children 
   );
 }
 
-function PostModerationGrid({ posts, onAction, compact = false }) {
+function PostModerationGrid({ posts, onAction, onDetails, onDownload, downloadingPostId, compact = false }) {
   if (!posts.length) return <div className="empty-state"><FileText /><h3>No posts found</h3><p>No stories match the current filters.</p></div>;
   return (
     <div className={compact ? "admin-drawer-posts" : "admin-post-grid"}>
       {posts.map((post) => (
         <article className={`admin-post-card ${post.isBlocked ? "is-blocked" : ""}`} key={post.id}>
           <img src={post.coverImage || "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=700&q=75"} alt="" />
-          <div><div className="admin-post-badges"><span className={`status ${post.status.toLowerCase()}`}>{post.status}</span><span className={`moderation-chip ${post.isBlocked ? "blocked" : "visible"}`}>{post.isBlocked ? "Blocked" : "Visible"}</span></div><h3>{post.title}</h3><p>{post.excerpt}</p>{post.author && <span className="post-author-line">{post.author.name} · {post.author.email}</span>}<div className="post-metrics"><span><Heart size={14} /> {post._count?.likes || 0}</span><span><MessageCircle size={14} /> {post._count?.comments || 0}</span><span>{post.viewCount || 0} views</span></div>{post.blockedReason && <div className="blocked-reason"><ShieldAlert size={15} /> {post.blockedReason}</div>}<div className="admin-card-actions"><Link className="button button-ghost" to={`/post/${post.slug}`} target="_blank"><ExternalLink size={15} /> Preview</Link><button className={`button ${post.isBlocked ? "button-success" : "button-danger"}`} onClick={() => onAction(post)}>{post.isBlocked ? <CheckCircle2 size={16} /> : <Ban size={16} />}{post.isBlocked ? "Unblock" : "Block"}</button></div></div>
+          <div><div className="admin-post-badges"><span className={`status ${post.status.toLowerCase()}`}>{post.status}</span><span className={`moderation-chip ${post.isBlocked ? "blocked" : "visible"}`}>{post.isBlocked ? "Blocked" : "Visible"}</span></div><h3>{post.title}</h3><p>{post.excerpt}</p>{post.author && <span className="post-author-line">{post.author.name} · {post.author.email}</span>}<div className="post-metrics"><span><Heart size={14} /> {post._count?.likes || 0}</span><span><MessageCircle size={14} /> {post._count?.comments || 0}</span><span>{post.viewCount || 0} views</span></div>{post.blockedReason && <div className="blocked-reason"><ShieldAlert size={15} /> {post.blockedReason}</div>}<div className="admin-card-actions"><button className="button button-ghost" onClick={() => onDetails(post)}><FileText size={15} /> Details</button><button className="button button-ghost" onClick={() => onDownload(post)} disabled={downloadingPostId === post.id}><Download size={15} /> {downloadingPostId === post.id ? "Downloading..." : "Download"}</button><Link className="button button-ghost" to={`/post/${post.slug}`} target="_blank"><ExternalLink size={15} /> Preview</Link><button className={`button ${post.isBlocked ? "button-success" : "button-danger"}`} onClick={() => onAction(post)}>{post.isBlocked ? <CheckCircle2 size={16} /> : <Ban size={16} />}{post.isBlocked ? "Unblock" : "Block"}</button></div></div>
         </article>
       ))}
     </div>
