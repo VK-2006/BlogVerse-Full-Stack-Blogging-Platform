@@ -13,6 +13,7 @@ import "./ui-polish-v26.css";
 import "./ui-polish-v26-3.css";
 import "./ui-polish-v27.css";
 import "./ui-polish-v27-1.css";
+import "./ui-polish-v27-2.css";
 
 const rootElement = document.getElementById("root");
 

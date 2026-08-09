@@ -1,0 +1,131 @@
+/* BlogVerse V27.2 — final screenshot-driven polish.
+   Scope: editor upload controls, mobile title placeholder readability,
+   and section-heading primary-button contrast. */
+
+/* Primary buttons inside section headings must keep white text.
+   app-redesign.css has a more specific .section-heading > a color rule. */
+.section-heading > a.button-primary {
+  color: #fff;
+}
+
+/* Story settings: make icon labels consistent with form labels instead of
+   rendering them as oversized section headings. */
+.editor-sidebar .setting-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--heading);
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.editor-sidebar .setting-title svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+/* Upload control had no dedicated styling and therefore looked like a
+   native browser button. Give it the same design language as BlogVerse. */
+.file-drop-zone {
+  position: relative;
+  width: 100%;
+  min-height: 132px;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  overflow: hidden;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 58%),
+    var(--surface-2);
+  color: var(--text-2);
+  text-align: center;
+  box-shadow: none;
+  transition: border-color .2s ease, background .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+
+.file-drop-zone:hover:not(:disabled),
+.file-drop-zone.drag-active {
+  transform: translateY(-1px);
+  border-color: var(--primary);
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 62%),
+    var(--surface-2);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.file-drop-zone > svg {
+  width: 27px;
+  height: 27px;
+  color: var(--primary);
+}
+
+.file-drop-zone > strong {
+  color: var(--heading);
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.file-drop-zone > span {
+  max-width: 28ch;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.file-drop-zone > i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  max-width: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--cyan));
+  transition: width .18s ease;
+}
+
+.file-drop-zone:disabled {
+  opacity: .72;
+}
+
+/* Keep related-link helper content compact and aligned. */
+.editor-sidebar .related-links-input {
+  min-height: 108px;
+}
+
+.editor-sidebar label > small {
+  color: var(--text-3);
+  line-height: 1.45;
+}
+
+/* Mobile input placeholders are single-line by browser design.
+   Reduce only placeholder size so the guidance does not look clipped,
+   while preserving the larger entered-title typography. */
+@media (max-width: 720px) {
+  .title-input::placeholder {
+    font-size: 27px;
+    letter-spacing: -.035em;
+  }
+
+  .editor-sidebar .setting-title {
+    font-size: 14px;
+  }
+
+  .file-drop-zone {
+    min-height: 122px;
+    padding: 18px 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .title-input::placeholder {
+    font-size: 25px;
+  }
+}
