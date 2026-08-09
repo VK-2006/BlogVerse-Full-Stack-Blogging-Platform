@@ -1,0 +1,32 @@
+/* BlogVerse V27.3 — final pixel-review fix.
+   Data Deletion step sentences contain inline <strong> fragments.
+   The earlier two-column CSS Grid treated those fragments as separate grid items,
+   which caused labels such as "Account Settings" to stack letter-by-letter.
+   Keep the numbered badge absolutely positioned and let each sentence flow inline. */
+
+.legal-steps li {
+  position: relative;
+  display: block;
+  min-height: 30px;
+  padding-left: 46px;
+  line-height: 1.75;
+}
+
+.legal-steps li::before {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.legal-steps li strong {
+  display: inline;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+@media (max-width: 480px) {
+  .legal-steps li {
+    padding-left: 40px;
+  }
+}
