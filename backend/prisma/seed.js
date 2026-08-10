@@ -69,7 +69,7 @@ async function ensureComment({ content, userId, postId }) {
 }
 
 async function main() {
-  const creatorName = process.env.PROJECT_CREATOR_NAME?.trim() || "Venkat Kiran";
+  const creatorName = process.env.PROJECT_CREATOR_NAME?.trim() || "D. VENKATA KIRAN";
   const isProduction = process.env.NODE_ENV === "production";
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || (isProduction ? "" : "Admin@123");
   const writerPassword = isProduction
