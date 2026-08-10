@@ -1,6 +1,6 @@
 # BlogVerse — Full-Stack Blogging Platform
 
-**Student:** Venkat Kiran  
+**Student:** D. VENKATA KIRAN  
 **Project:** Full Stack Blogging Platform Development Project
 
 BlogVerse is a responsive full-stack blogging and creator-community platform built with React, Vite, Node.js, Express, Prisma and MySQL.
