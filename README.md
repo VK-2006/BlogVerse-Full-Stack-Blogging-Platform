@@ -104,7 +104,7 @@ http://localhost:5000/api/health
 ```text
 Admin
 Email: admin@blogverse.com
-Password: Admin@123
+Password: (Admin@Blog2026)
 ```
 
 ```text
@@ -152,8 +152,8 @@ Recommended architecture:
 
 - Source code: GitHub
 - Frontend: Vercel
-- Backend: Railway
-- Database: Railway MySQL
+- Backend: Render
+- Database: Aiven MySQL
 - Permanent file storage: Cloudinary
 
 For production migrations use:
