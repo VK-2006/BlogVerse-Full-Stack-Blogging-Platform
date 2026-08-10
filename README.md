@@ -104,7 +104,7 @@ http://localhost:5000/api/health
 ```text
 Admin
 Email: admin@blogverse.com
-Password: (Admin@Blog2026)
+Password: Admin@123
 ```
 
 ```text
