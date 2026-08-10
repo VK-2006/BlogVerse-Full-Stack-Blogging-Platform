@@ -104,7 +104,6 @@ http://localhost:5000/api/health
 ```text
 Admin
 Email: admin@blogverse.com
-Password: Admin@123
 ```
 Local demo credentials only — not valid in production
 ```text
@@ -112,8 +111,9 @@ Demo writers
 ananya@blogverse.com
 arjun@blogverse.com
 maya@blogverse.com
-Password: Writer@123
 ```
+
+Passwords Are Not Shared Here. Contact me for the related Information. 
 
 ## Contact-to-admin workflow
 
