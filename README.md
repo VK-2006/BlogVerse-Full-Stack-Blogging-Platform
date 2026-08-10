@@ -12,7 +12,7 @@ BlogVerse is a responsive full-stack blogging and creator-community platform bui
 - Database: MySQL
 - ORM: Prisma
 - Authentication: JWT + bcrypt
-- Email: Nodemailer SMTP
+- Email: Brevo Transactional Email API
 - Icons: Lucide React
 
 ## Main features
