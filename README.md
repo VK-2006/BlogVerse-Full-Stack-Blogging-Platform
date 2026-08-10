@@ -128,12 +128,12 @@ Password: Writer@123
 ## Brevo variables section
 
 ```env
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_app_password
-EMAIL_FROM="BlogVerse <your_email@gmail.com>"
+BREVO_API_KEY=xkeysib-your-brevo-api-key
+BREVO_SENDER_EMAIL=your-verified-sender@example.com
+BREVO_SENDER_NAME=BlogVerse
+BREVO_REPLY_TO_EMAIL=your-support-email@example.com
+BREVO_REPLY_TO_NAME=BlogVerse Support
+BREVO_TIMEOUT_MS=12000
 ```
 
 ## Verification
