@@ -125,7 +125,7 @@ Password: Writer@123
 6. Signed-in users can read replies on the Contact page.
 7. When Brevo is configured, the reply is also sent to the supplied email address.
 
-## Optional SMTP variables
+## Brevo variables section
 
 ```env
 SMTP_HOST=smtp.gmail.com
