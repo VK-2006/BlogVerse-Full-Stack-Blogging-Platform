@@ -123,7 +123,7 @@ Password: Writer@123
 4. The administrator reads the message and writes a reply.
 5. The reply is saved in MySQL.
 6. Signed-in users can read replies on the Contact page.
-7. When SMTP is configured, the reply is also sent to the supplied email address.
+7. When Brevo is configured, the reply is also sent to the supplied email address.
 
 ## Optional SMTP variables
 
