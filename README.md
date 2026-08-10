@@ -106,7 +106,7 @@ Admin
 Email: admin@blogverse.com
 Password: Admin@123
 ```
-
+Local demo credentials only — not valid in production
 ```text
 Demo writers
 ananya@blogverse.com
